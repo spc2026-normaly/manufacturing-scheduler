@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AppLayout from "./AppLayout";
 
 export const metadata: Metadata = {
   title: "Manufacturing Scheduler",
@@ -18,7 +19,9 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      <body>{children}</body>
+      <body>
+        <AppLayout>{children}</AppLayout>
+      </body>
     </html>
   );
 }

@@ -7,6 +7,7 @@ from app.config import settings
 from app.database import engine
 from app.models import Base
 from app.routers.health import router as health_router
+from app.routers.scheduler_api import router as scheduler_router
 
 
 @asynccontextmanager
@@ -36,6 +37,7 @@ app.add_middleware(
 
 # ─── 라우터 등록 ──────────────────────────────────────────────────────────────
 app.include_router(health_router)
+app.include_router(scheduler_router)
 
 
 @app.get("/", include_in_schema=False)

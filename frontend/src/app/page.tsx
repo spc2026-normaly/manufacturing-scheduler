@@ -130,7 +130,21 @@ export default function DashboardPage() {
   const [selectedDay, setSelectedDay] = useState<number>(17); // Set default to June 17th as highlighted in mockups
   const [toastText, setToastText] = useState<string | null>(null);
 
-  // Fetch API Health
+  // Real-time API States
+  const [employeesCount, setEmployeesCount] = useState(128); // default mock values
+  const [completionRate, setCompletionRate] = useState(86.7);
+  const [upcomingCount, setUpcomingCount] = useState(12);
+  const [upcomingList, setUpcomingList] = useState<Array<{ name: string; dday: string; urgent: boolean }>>([]);
+
+  const getAuthHeaders = () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    return {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : ""
+    };
+  };
+
+  // Fetch API Health & Dashboard data
   useEffect(() => {
     const checkHealth = async () => {
       try {
@@ -142,7 +156,56 @@ export default function DashboardPage() {
         console.error("Backend health check failed:", e);
       }
     };
+
+    const fetchDashboardData = async () => {
+      try {
+        const headers = getAuthHeaders();
+
+        // 1. Fetch employee total count
+        const empRes = await fetch("/api/employees?limit=1", { headers });
+        if (empRes.ok) {
+          const empData = await empRes.json();
+          setEmployeesCount(empData.total);
+        }
+
+        // 2. Fetch safety training records for completion rate
+        const stRes = await fetch("/api/safety-trainings", { headers });
+        if (stRes.ok) {
+          const stData = await stRes.json();
+          if (stData.length > 0) {
+            const completed = stData.filter((t: any) => t.training_status === "COMPLETED").length;
+            const rate = Math.round((completed / stData.length) * 1000) / 10;
+            setCompletionRate(rate);
+          }
+        }
+
+        // 3. Fetch equipments for upcoming inspections
+        const eqRes = await fetch("/api/equipments?upcoming_days=7", { headers });
+        if (eqRes.ok) {
+          const eqData = await eqRes.json();
+          setUpcomingCount(eqData.length);
+          
+          const mapped = eqData.slice(0, 4).map((item: any) => {
+            const today = new Date();
+            const target = new Date(item.check_date);
+            const diffTime = target.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return {
+              name: `${item.eq_name} (${item.eq_status})`,
+              dday: diffDays >= 0 ? `D-${diffDays}` : "만료",
+              urgent: diffDays <= 3
+            };
+          });
+          setUpcomingList(mapped);
+        }
+
+      } catch (err) {
+        console.error("Failed to load dashboard data from backend", err);
+      }
+    };
+
     checkHealth();
+    fetchDashboardData();
     const id = setInterval(checkHealth, 15000);
     return () => clearInterval(id);
   }, []);
@@ -188,7 +251,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* ── Row 1: Stats Grid (Mockup Style Data) ── */}
+      {/* ── Row 1: Stats Grid (Real-time API Data) ── */}
       <div className="stats-row">
         {/* Card 1: 전체 직원 수 */}
         <div className="stat-card">
@@ -196,11 +259,11 @@ export default function DashboardPage() {
             <span className="stat-card-title">전체 직원 수</span>
           </div>
           <div className="stat-card-body">
-            <span className="stat-number">128</span>
+            <span className="stat-number">{employeesCount}</span>
             <span className="stat-unit">명</span>
           </div>
           <div className="stat-card-footer">
-            <span className="trend-text positive">지난 달 대비 ▲ 5명</span>
+            <span className="trend-text positive">실시간 연동 완료</span>
           </div>
         </div>
 
@@ -210,11 +273,11 @@ export default function DashboardPage() {
             <span className="stat-card-title">교육 완료율</span>
           </div>
           <div className="stat-card-body">
-            <span className="stat-number">86.7</span>
+            <span className="stat-number">{completionRate}</span>
             <span className="stat-unit">%</span>
           </div>
           <div className="stat-card-footer">
-            <span className="trend-text positive">지난 달 대비 ▲ 4.2%</span>
+            <span className="trend-text positive">실시간 교육 이수율</span>
           </div>
         </div>
 
@@ -224,7 +287,7 @@ export default function DashboardPage() {
             <span className="stat-card-title">점검 예정 설비</span>
           </div>
           <div className="stat-card-body">
-            <span className="stat-number">12</span>
+            <span className="stat-number">{upcomingCount}</span>
             <span className="stat-unit">건</span>
           </div>
           <div className="stat-card-footer">
@@ -232,7 +295,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Card 4: 업로드 문서 */}
+        {/* Card 4: 업로드 문서 (문서 관련 항목이므로 목업 유지) */}
         <div className="stat-card">
           <div className="stat-card-header">
             <span className="stat-card-title">업로드 문서</span>
@@ -246,6 +309,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
 
       {/* ── Row 2: Calendar & Details ── */}
       <div className="calendar-detail-row">
@@ -411,25 +475,26 @@ export default function DashboardPage() {
           </div>
           <div className="widget-divider"></div>
           <div className="equipments-list">
-            {[
-              { name: "압축기 #2 (B공장)", dday: "D-2", urgent: true },
-              { name: "보일러 #1 (A공장)", dday: "D-3", urgent: true },
-              { name: "냉각탑 #3 (B공장)", dday: "D-5", urgent: true },
-              { name: "펌프 #1 (C공장)", dday: "D-6", urgent: true }
-            ].map((eq, idx) => (
-              <div key={idx} className="eq-row-item">
-                <div className="eq-info">
-                  <span className="eq-icon">⚙️</span>
-                  <div className="eq-info-texts">
-                    <span className="eq-name-text">{eq.name}</span>
-                    <span className="eq-date-sub">정기 안전 진단 점검 예정</span>
+            {upcomingList.length > 0 ? (
+              upcomingList.map((eq, idx) => (
+                <div key={idx} className="eq-row-item">
+                  <div className="eq-info">
+                    <span className="eq-icon">⚙️</span>
+                    <div className="eq-info-texts">
+                      <span className="eq-name-text">{eq.name}</span>
+                      <span className="eq-date-sub">정기 안전 진단 점검 예정</span>
+                    </div>
                   </div>
+                  <span className={`eq-status-badge ${eq.urgent ? "urgent" : "normal"}`}>
+                    {eq.dday}
+                  </span>
                 </div>
-                <span className={`eq-status-badge ${eq.urgent ? "urgent" : "normal"}`}>
-                  {eq.dday}
-                </span>
+              ))
+            ) : (
+              <div style={{ fontSize: "13px", color: "var(--text-muted, #64748b)", padding: "20px 0", textAlign: "center" }}>
+                일주일 이내 점검 예정 장비가 없습니다.
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>

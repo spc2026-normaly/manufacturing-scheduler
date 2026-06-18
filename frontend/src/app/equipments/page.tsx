@@ -113,6 +113,7 @@ export default function EquipmentsPage() {
           display: grid;
           grid-template-columns: 2fr 1fr;
           gap: 24px;
+          align-items: start;
         }
         @media (max-width: 1024px) {
           .eq-top-grid {
@@ -130,12 +131,12 @@ export default function EquipmentsPage() {
           background-color: var(--card-bg, #ffffff);
           border: 1px solid var(--border, #e2e8f0);
           border-radius: 12px;
-          padding: 24px;
+          padding: 16px 20px;
           box-shadow: 0 1px 3px rgba(0,0,0,0.05);
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          min-height: 140px;
+          min-height: 100px;
         }
         .eq-metric-title {
           font-size: 15px;

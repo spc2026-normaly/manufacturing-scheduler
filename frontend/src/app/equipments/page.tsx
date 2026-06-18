@@ -1,51 +1,106 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 // ─── Interfaces & Types ─────────────────────────────────────
 interface Equipment {
-  id: string;
-  name: string;
-  total: number;
-  available: number;
-  period: string;
-  inspect_date: string;
-  next_date: string;
+  eq_id: string;
+  eq_name: string;
+  eq_count: number;
+  available_eq_count: number;
+  check_cycle: number;
+  eq_status: string;
+  check_date: string;
+  recent_check_date: string;
 }
 
-interface Metric {
-  title: string;
-  value: string;
-  unit: string;
+interface UpcomingEquipment {
+  eq_name: string;
+  check_date: string;
+  dday: string;
 }
-
-// ─── Mock Data ───────────────────────────────────────────────
-const MOCK_METRICS: Metric[] = [
-  { title: "전체 직원", value: "38", unit: "명" },
-  { title: "점검 예정 장비", value: "12", unit: "건" },
-  { title: "업로드 문서", value: "21", unit: "개" }
-];
-
-const MOCK_UPCOMING_EQUIPMENTS = [
-  { name: "압축기 #2 (B공장)", date: "2026.06.20 (D-2)" },
-  { name: "보일러 #1 (A공장)", date: "2026.06.21 (D-3)" }
-];
-
-const MOCK_EQUIPMENTS: Equipment[] = [
-  { id: "eq_001", name: "압축기 #2", total: 5, available: 2, period: "30일", inspect_date: "2026.06.12", next_date: "2026.06.12" },
-  { id: "eq_002", name: "보일러 #1", total: 3, available: 3, period: "90일", inspect_date: "2026.04.15", next_date: "2026.07.15" },
-  { id: "eq_003", name: "믹싱기 #3", total: 4, available: 2, period: "30일", inspect_date: "2026.06.01", next_date: "2026.07.01" },
-  { id: "eq_004", name: "성형기 #1", total: 6, available: 5, period: "60일", inspect_date: "2026.05.10", next_date: "2026.07.10" },
-  { id: "eq_005", name: "포장기 #2", total: 8, available: 8, period: "30일", inspect_date: "2026.06.14", next_date: "2026.07.14" },
-  { id: "eq_006", name: "냉각탑 #3", total: 2, available: 1, period: "180일", inspect_date: "2026.02.20", next_date: "2026.08.20" },
-  { id: "eq_007", name: "펌프 #1", total: 10, available: 9, period: "90일", inspect_date: "2026.05.25", next_date: "2026.08.25" },
-  { id: "eq_008", name: "컨베이어 #1", total: 12, available: 12, period: "365일", inspect_date: "2026.01.10", next_date: "2027.01.10" }
-];
 
 export default function EquipmentsPage() {
+  const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const [upcomingEquipments, setUpcomingEquipments] = useState<UpcomingEquipment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Helper for Authorization Headers
+  const getAuthHeaders = () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    return {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : ""
+    };
+  };
+
+  // Fetch all dashboard data
+  const fetchData = async () => {
+    try {
+      const headers = getAuthHeaders();
+
+      // 1. Fetch entire equipments
+      const eqRes = await fetch("/api/equipments", { headers });
+      let eqData: Equipment[] = [];
+      if (eqRes.ok) {
+        eqData = await eqRes.json();
+        setEquipments(eqData);
+      }
+
+      // 2. Fetch upcoming check equipments (7 days limit)
+      const upRes = await fetch("/api/equipments?upcoming_days=7", { headers });
+      if (upRes.ok) {
+        const upData: Equipment[] = await upRes.json();
+        const mappedUpcoming = upData.map((item) => {
+          const today = new Date();
+          const target = new Date(item.check_date);
+          const diffTime = target.getTime() - today.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          return {
+            eq_name: item.eq_name,
+            check_date: item.check_date,
+            dday: diffDays >= 0 ? `D-${diffDays}` : "만료"
+          };
+        });
+        setUpcomingEquipments(mappedUpcoming);
+      }
+
+    } catch (err) {
+      console.error("Failed to fetch equipment dashboard data", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const normalEquipmentsCount = equipments.filter(e => e.eq_status === "정상").length;
+
+  const metrics = [
+    { title: "전체 장비", value: String(equipments.length), unit: "대" },
+    { title: "사용 가능 장비 수", value: String(normalEquipmentsCount), unit: "대" },
+    { title: "점검 예정 장비", value: String(upcomingEquipments.length), unit: "건" }
+  ];
+
+  if (loading) {
+    return (
+      <div style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "60vh",
+        color: "var(--text-muted, #64748b)"
+      }}>
+        데이터 로딩 중...
+      </div>
+    );
+  }
+
   return (
     <div className="eq-container animate-in">
-    <style>{`
+      <style>{`
         .eq-container {
           padding: 24px;
           display: flex;
@@ -220,11 +275,11 @@ export default function EquipmentsPage() {
       <div className="eq-top-grid">
         {/* Metric Cards (Left) */}
         <div className="eq-metrics-grid">
-          {MOCK_METRICS.map((metric) => (
+          {metrics.map((metric) => (
             <div key={metric.title} className="eq-metric-card">
               <div className="eq-metric-title">{metric.title}</div>
               <div className="eq-metric-value-wrapper">
-                {metric.title === "전체 직원" && <span className="eq-metric-prefix">총</span>}
+                {metric.title === "전체 장비" && <span className="eq-metric-prefix">총</span>}
                 <span className="eq-metric-value">{metric.value}</span>
                 <span className="eq-metric-unit">{metric.unit}</span>
               </div>
@@ -235,21 +290,29 @@ export default function EquipmentsPage() {
         {/* Alarm Board (Right) */}
         <div className="eq-alarm-card">
           <div className="eq-alarm-title">점검일이 다가오는 장비</div>
-          {MOCK_UPCOMING_EQUIPMENTS.map((eq, idx) => (
-            <div key={idx}>
-              <div className="eq-alarm-item">
-                <div>
-                  <span className="eq-alarm-meta">장비명: </span>
-                  <span className="eq-alarm-value">{eq.name}</span>
+          {upcomingEquipments.length > 0 ? (
+            upcomingEquipments.map((eq, idx) => (
+              <div key={idx}>
+                <div className="eq-alarm-item">
+                  <div>
+                    <span className="eq-alarm-meta">장비명: </span>
+                    <span className="eq-alarm-value">{eq.eq_name}</span>
+                  </div>
+                  <div>
+                    <span className="eq-alarm-meta">점검날짜: </span>
+                    <span className="eq-alarm-value" style={{ color: "#c5221f" }}>
+                      {eq.check_date.replace(/-/g, ".")} ({eq.dday})
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <span className="eq-alarm-meta">점검날짜: </span>
-                  <span className="eq-alarm-value" style={{ color: "#c5221f" }}>{eq.date}</span>
-                </div>
+                {idx < upcomingEquipments.length - 1 && <hr className="eq-divider" />}
               </div>
-              {idx < MOCK_UPCOMING_EQUIPMENTS.length - 1 && <hr className="eq-divider" />}
+            ))
+          ) : (
+            <div style={{ fontSize: "13px", color: "var(--text-muted, #64748b)", textAlign: "center", padding: "10px 0" }}>
+              7일 이내 점검 예정 장비가 없습니다.
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -270,21 +333,29 @@ export default function EquipmentsPage() {
               </tr>
             </thead>
             <tbody>
-              {MOCK_EQUIPMENTS.map((eq, idx) => (
-                <tr key={eq.id} className="eq-row animate-in" style={{ animationDelay: `${idx * 0.05}s` }}>
-                  <td style={{ color: "var(--text-muted, #64748b)", fontWeight: 500 }}>No.{idx + 1}</td>
-                  <td className="eq-cell-name">{eq.name}</td>
-                  <td>{eq.total}</td>
-                  <td>{eq.available}</td>
-                  <td>{eq.period}</td>
-                  <td>
-                    <span className="eq-badge badge-gray">{eq.inspect_date}</span>
-                  </td>
-                  <td>
-                    <span className="eq-badge badge-yellow">{eq.next_date}</span>
+              {equipments.length > 0 ? (
+                equipments.map((eq, idx) => (
+                  <tr key={eq.eq_id} className="eq-row animate-in" style={{ animationDelay: `${idx * 0.05}s` }}>
+                    <td style={{ color: "var(--text-muted, #64748b)", fontWeight: 500 }}>No.{idx + 1}</td>
+                    <td className="eq-cell-name">{eq.eq_name}</td>
+                    <td>{eq.eq_count}</td>
+                    <td>{eq.available_eq_count}</td>
+                    <td>{eq.check_cycle}일</td>
+                    <td>
+                      <span className="eq-badge badge-gray">{eq.recent_check_date.replace(/-/g, ".")}</span>
+                    </td>
+                    <td>
+                      <span className="eq-badge badge-yellow">{eq.check_date.replace(/-/g, ".")}</span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: "center", padding: "30px", color: "var(--text-muted, #64748b)" }}>
+                    등록된 장비가 없습니다.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

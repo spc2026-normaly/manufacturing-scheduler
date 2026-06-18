@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 
 // ─── Interfaces & Types ─────────────────────────────────────
 interface TrainingStatus {
@@ -15,98 +15,129 @@ interface WorkerSafetyData {
   trainings: [TrainingStatus, TrainingStatus, TrainingStatus, TrainingStatus, TrainingStatus];
 }
 
-// ─── Mock Data matching the sketch ───────────────────────────
-const MOCK_SAFETY_TRAININGS: WorkerSafetyData[] = [
-  {
-    emp_name: "김ㅇㅇ",
-    login_id: "emp1",
-    trainings: [
-      { state: "completed", date: "2028-06-30", dday: "D-150" },
-      { state: "warning_high", date: "2025-05-28", dday: "D-5" },
-      { state: "none" },
-      { state: "expired", date: "2025-03-15", dday: "만료" },
-      { state: "warning_mid", date: "2025-06-10", dday: "D-18" }
-    ]
-  },
-  {
-    emp_name: "이ㅇㅇ",
-    login_id: "emp2",
-    trainings: [
-      { state: "completed", date: "2025-12-31", dday: "D-334" },
-      { state: "completed", date: "2026-02-28", dday: "D-28" },
-      { state: "warning_mid", date: "2025-06-05", dday: "D-13" },
-      { state: "none" },
-      { state: "expired", date: "2025-04-01", dday: "만료" }
-    ]
-  },
-  {
-    emp_name: "박ㅇㅇ",
-    login_id: "emp3",
-    trainings: [
-      { state: "expired", date: "2025-01-20", dday: "만료" },
-      { state: "completed", date: "2025-10-15", dday: "D-257" },
-      { state: "none" },
-      { state: "warning_mid", date: "2025-06-02", dday: "D-10" },
-      { state: "none" }
-    ]
-  },
-  {
-    emp_name: "최ㅇㅇ",
-    login_id: "emp4",
-    trainings: [
-      { state: "completed", date: "2026-07-15", dday: "D-165" },
-      { state: "none" },
-      { state: "completed", date: "2025-12-20", dday: "D-323" },
-      { state: "expired", date: "2025-02-10", dday: "만료" },
-      { state: "none" }
-    ]
-  },
-  {
-    emp_name: "정ㅇㅇ",
-    login_id: "emp5",
-    trainings: [
-      { state: "warning_mid", date: "2025-06-08", dday: "D-16" },
-      { state: "completed", date: "2025-11-11", dday: "D-284" },
-      { state: "none" },
-      { state: "completed", date: "2026-03-30", dday: "D-59" },
-      { state: "expired", date: "2025-04-20", dday: "만료" }
-    ]
-  },
-  {
-    emp_name: "한ㅇㅇ",
-    login_id: "emp6",
-    trainings: [
-      { state: "none" },
-      { state: "expired", date: "2025-03-01", dday: "만료" },
-      { state: "completed", date: "2026-01-31", dday: "D-61" },
-      { state: "warning_mid", date: "2025-06-15", dday: "D-23" },
-      { state: "none" }
-    ]
-  },
-  {
-    emp_name: "강ㅇㅇ",
-    login_id: "emp7",
-    trainings: [
-      { state: "completed", date: "2026-09-10", dday: "D-222" },
-      { state: "none" },
-      { state: "none" },
-      { state: "expired", date: "2025-02-28", dday: "만료" },
-      { state: "completed", date: "2026-04-22", dday: "D-82" }
-    ]
-  }
-];
+// ─── API Response Interfaces ───────────────────────────────
+interface ApiEmployee {
+  emp_id: string;
+  login_id: string;
+  emp_name: string;
+  emp_role: string;
+  emp_date: string;
+}
+
+interface ApiSafetyTraining {
+  training_id: string;
+  emp_id: string;
+  training_name: string;
+  training_date: string;
+  expired_date: string;
+  training_status: string;
+}
 
 export default function SafetyTrainingPage() {
+  const [workersData, setWorkersData] = useState<WorkerSafetyData[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  // Helper for Authorization Headers
+  const getAuthHeaders = () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    return {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : ""
+    };
+  };
+
+  // Helper to calculate D-Day relative to base date 2026.06.15
+  const calculateTrainingStatus = (expiredDateStr: string): { state: TrainingStatus["state"]; dday: string } => {
+    const baseDate = new Date("2026-06-15");
+    const targetDate = new Date(expiredDateStr);
+    const diffTime = targetDate.getTime() - baseDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return { state: "expired", dday: "만료" };
+    } else if (diffDays <= 7) {
+      return { state: "warning_high", dday: `D-${diffDays}` };
+    } else if (diffDays <= 30) {
+      return { state: "warning_mid", dday: `D-${diffDays}` };
+    } else {
+      return { state: "completed", dday: `D-${diffDays}` };
+    }
+  };
+
+  // Fetch data on mount
+  const fetchSafetyTrainings = async () => {
+    try {
+      const headers = getAuthHeaders();
+
+      // 1. Fetch entire employees
+      const empRes = await fetch("/api/employees?limit=500", { headers });
+      if (!empRes.ok) throw new Error("Failed to fetch employees");
+      const empResult = await empRes.json();
+      const employees: ApiEmployee[] = empResult.items;
+
+      // 2. Fetch safety training records
+      const trainingRes = await fetch("/api/safety-trainings", { headers });
+      if (!trainingRes.ok) throw new Error("Failed to fetch safety trainings");
+      const trainings: ApiSafetyTraining[] = await trainingRes.json();
+
+      // 3. Process and map trainings for each employee
+      const mappedWorkers: WorkerSafetyData[] = employees.map((emp) => {
+        // Find all training records for this employee
+        const empTrainings = trainings.filter((t) => t.emp_id === emp.emp_id);
+
+        // Map up to 5 safety training columns
+        const trainingsList: TrainingStatus[] = Array(5).fill(null).map(() => ({ state: "none" }));
+
+        let normalIndex = 1;
+        empTrainings.forEach((record) => {
+          const name = record.training_name;
+          const statusCalc = calculateTrainingStatus(record.expired_date);
+          const trainingObj: TrainingStatus = {
+            state: statusCalc.state,
+            date: record.expired_date.replace(/-/g, "."),
+            dday: statusCalc.dday
+          };
+
+          // If it's the primary "정기 안전 교육" or "안전교육1", put it in column 1 (index 0)
+          if (name === "정기 안전 교육" || name === "안전교육1") {
+            trainingsList[0] = trainingObj;
+          } else {
+            // Put other trainings in column 2~5 sequentially
+            if (normalIndex < 5) {
+              trainingsList[normalIndex] = trainingObj;
+              normalIndex++;
+            }
+          }
+        });
+
+        return {
+          emp_name: emp.emp_name,
+          login_id: emp.login_id,
+          trainings: trainingsList as WorkerSafetyData["trainings"]
+        };
+      });
+
+      setWorkersData(mappedWorkers);
+    } catch (err) {
+      console.error("Failed to map safety trainings data", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSafetyTrainings();
+  }, []);
 
   // 1. Filter workers based on name search query
   const filteredWorkers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return MOCK_SAFETY_TRAININGS;
-    return MOCK_SAFETY_TRAININGS.filter((w) =>
+    if (!q) return workersData;
+    return workersData.filter((w) =>
       w.emp_name.toLowerCase().includes(q)
     );
-  }, [searchQuery]);
+  }, [workersData, searchQuery]);
 
   // 2. Count statistics for complete vs expired
   const stats = useMemo(() => {
@@ -116,7 +147,7 @@ export default function SafetyTrainingPage() {
     let warningHigh = 0;
     let expired = 0;
 
-    MOCK_SAFETY_TRAININGS.forEach((w) => {
+    workersData.forEach((w) => {
       w.trainings.forEach((t) => {
         if (t.state !== "none") {
           totalCount++;
@@ -129,11 +160,11 @@ export default function SafetyTrainingPage() {
     });
 
     return { totalCount, completed, warningMid, warningHigh, expired };
-  }, []);
+  }, [workersData]);
 
-  const completedRate = Math.round((stats.completed / stats.totalCount) * 100) || 0;
-  const expiredRate = Math.round((stats.expired / stats.totalCount) * 100) || 0;
-  const warningRate = 100 - completedRate - expiredRate;
+  const completedRate = stats.totalCount > 0 ? Math.round((stats.completed / stats.totalCount) * 100) : 0;
+  const expiredRate = stats.totalCount > 0 ? Math.round((stats.expired / stats.totalCount) * 100) : 0;
+  const warningRate = stats.totalCount > 0 ? (100 - completedRate - expiredRate) : 0;
 
   // Helper to render state badge
   const renderBadge = (training: TrainingStatus) => {
@@ -180,6 +211,20 @@ export default function SafetyTrainingPage() {
         );
     }
   };
+
+  if (loading) {
+    return (
+      <div style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "60vh",
+        color: "var(--text-muted, #64748b)"
+      }}>
+        데이터 로딩 중...
+      </div>
+    );
+  }
 
   return (
     <div className="st-container animate-in">
@@ -377,6 +422,7 @@ export default function SafetyTrainingPage() {
           font-weight: 400;
           margin-top: 1px;
           opacity: 0.85;
+          white-space: nowrap;
         }
         .st-badge .badge-dday {
           font-size: 10px;

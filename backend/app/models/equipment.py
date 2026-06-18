@@ -1,32 +1,28 @@
 import uuid
 from datetime import date
-from sqlalchemy import String, Integer, Date, Enum as SAEnum
+from sqlalchemy import String, Integer, Date
 from sqlalchemy.orm import Mapped, mapped_column
-import enum
 
 from app.database import Base
-from app.models.base import TimestampMixin
-
-
-class EquipmentStatus(str, enum.Enum):
-    정상 = "정상"
-    점검필요 = "점검 필요"
-    점검중 = "점검중"
-    고장 = "고장"
 
 
 class Equipment(Base):
+    """장비 모델 (원래 데이터베이스 스키마 준수)"""
+
     __tablename__ = "equipments"
 
     eq_id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+        String(255), primary_key=True, default=lambda: f"eq_{uuid.uuid4().hex[:8]}"
     )
-    eq_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    eq_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    available_eq_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    check_cycle: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 일 단위
-    eq_status: Mapped[EquipmentStatus] = mapped_column(
-        SAEnum(EquipmentStatus), nullable=False, default=EquipmentStatus.정상
+    eq_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    eq_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    available_eq_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    check_cycle: Mapped[int] = mapped_column(Integer, nullable=False)  # 점검 주기 (일 단위)
+    eq_status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="정상"
     )
-    check_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    recent_check_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    check_date: Mapped[date] = mapped_column(Date, nullable=False)
+    recent_check_date: Mapped[date] = mapped_column(Date, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<Equipment(eq_id='{self.eq_id}', name='{self.eq_name}', status='{self.eq_status}')>"

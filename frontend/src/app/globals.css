@@ -1299,6 +1299,32 @@ button {
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+.chat-expand-btn {
+  font-size: 13px;
+  color: #94a3b8;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  margin-right: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chat-expand-btn:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.ai-chat-panel.expanded {
+  width: 650px;
+  height: 650px;
+}
+
 .chat-message-list {
   flex: 1;
   overflow-y: auto;

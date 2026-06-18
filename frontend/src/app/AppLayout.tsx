@@ -7,8 +7,8 @@ import TeamManagement from "./TeamManagement";
 // Navigation items definition
 const NAV_ITEMS = [
   { icon: "🏠", label: "메인", path: "dashboard" },
-  { icon: "📅", label: "양산 일정", path: "schedules" },
   { icon: "📄", label: "내 문서", path: "documents" },
+  { icon: "📅", label: "양산 일정", path: "schedules" },
   { icon: "👥", label: "팀원 관리", path: "employees" },
   { icon: "📊", label: "안전 교육 현황", path: "safety-training" },
   { icon: "⚙️", label: "장비 관리", path: "equipments" },
@@ -65,6 +65,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const activeMenu = pathname === "/employees" ? "팀원 관리" : pathname === "/safety-training" ? "안전 교육 현황" : pathname === "/equipments" ? "장비 관리" : pathname === "/documents" ? "내 문서" : pathname === "/schedules" ? "양산 일정" : "메인";
 
   const [isAiOpen, setIsAiOpen] = useState(false);
+  const [isAiExpanded, setIsAiExpanded] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<Array<{ sender: "user" | "bot"; text: string; time: string }>>([
     {
@@ -277,13 +278,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </button>
 
         {/* Collapsible Chat Window */}
-        <div className="ai-chat-panel">
+        <div className={`ai-chat-panel ${isAiExpanded ? "expanded" : ""}`}>
           <div className="chat-header">
             <div className="chat-title-wrapper">
               <span className="chat-status-dot"></span>
               <h3>챗봇 (RAG 기반)</h3>
             </div>
-            <button className="chat-close-btn" onClick={() => setIsAiOpen(false)}>×</button>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <button
+                type="button"
+                className="chat-expand-btn"
+                onClick={(e) => { e.stopPropagation(); setIsAiExpanded(!isAiExpanded); }}
+                title={isAiExpanded ? "축소" : "확장"}
+                aria-label="Toggle chat width"
+              >
+                {isAiExpanded ? "➡️" : "⬅️"}
+              </button>
+              <button className="chat-close-btn" onClick={() => { setIsAiOpen(false); setIsAiExpanded(false); }}>×</button>
+            </div>
           </div>
 
           <div className="chat-message-list">

@@ -13,33 +13,34 @@ interface ProductionTask {
   workers: string[];
   product: string;
   colorClass: string;
-  // Weekly Gantt positioning: day of week index (0=Mon, 6=Sun)
-  startDay: number; 
-  endDay: number;
+  // Monthly Gantt positioning: week index of month (0 = Week 1, 4 = Week 5)
+  startWeek: number; 
+  endWeek: number;
 }
 
 // ─── Mock Schedule Dataset ───────────────────────────────────
+// Adjusted tasks to span weekly ranges for Monthly Gantt View
 const MOCK_TASKS: ProductionTask[] = [
   // A공장동
-  { facility: "A공장동", taskName: "밀링가공", equipment: "밀링머신 #01", product: "FLANGE-A 가공", workers: ["김철수", "이영수", "박지민"], colorClass: "bar-blue", startDay: 0, endDay: 2 },
-  { facility: "A공장동", taskName: "밀링가공", equipment: "밀링머신 #01", product: "BRACKET-B 가공", workers: ["이영희", "박진우"], colorClass: "bar-blue", startDay: 3, endDay: 4 },
-  { facility: "A공장동", taskName: "선반가공", equipment: "CNC선반 #02", product: "SHAFT-C 선반", workers: ["박민수"], colorClass: "bar-blue", startDay: 1, endDay: 3 },
-  { facility: "A공장동", taskName: "선반가공", equipment: "CNC선반 #02", product: "BOLT-D 선반", workers: ["최지훈"], colorClass: "bar-blue", startDay: 4, endDay: 6 },
-  { facility: "A공장동", taskName: "조립", equipment: "조립라인 #A", product: "PUMP-100 조립", workers: ["정수현", "김도현", "이선우", "최지아"], colorClass: "bar-green", startDay: 1, endDay: 3 },
-  { facility: "A공장동", taskName: "조립", equipment: "조립라인 #A", product: "VALVE-200 조립", workers: ["이서연", "임민재", "한우현"], colorClass: "bar-green", startDay: 4, endDay: 6 },
-  { facility: "A공장동", taskName: "검사", equipment: "3차원측정기 #01", product: "FLANGE-A 검사", workers: ["박준호"], colorClass: "bar-purple", startDay: 2, endDay: 3 },
-  { facility: "A공장동", taskName: "검사", equipment: "3차원측정기 #01", product: "PUMP-100 검사", workers: ["임지원"], colorClass: "bar-purple", startDay: 4, endDay: 5 },
+  { facility: "A공장동", taskName: "밀링가공", equipment: "밀링머신 #01", product: "FLANGE-A 가공", workers: ["김철수", "이영수", "박지민"], colorClass: "bar-blue", startWeek: 0, endWeek: 1 },
+  { facility: "A공장동", taskName: "밀링가공", equipment: "밀링머신 #01", product: "BRACKET-B 가공", workers: ["이영희", "박진우"], colorClass: "bar-blue", startWeek: 3, endWeek: 4 },
+  { facility: "A공장동", taskName: "선반가공", equipment: "CNC선반 #02", product: "SHAFT-C 선반", workers: ["박민수"], colorClass: "bar-blue", startWeek: 1, endWeek: 2 },
+  { facility: "A공장동", taskName: "선반가공", equipment: "CNC선반 #02", product: "BOLT-D 선반", workers: ["최지훈"], colorClass: "bar-blue", startWeek: 3, endWeek: 4 },
+  { facility: "A공장동", taskName: "조립", equipment: "조립라인 #A", product: "PUMP-100 조립", workers: ["정수현", "김도현", "이선우", "최지아"], colorClass: "bar-green", startWeek: 1, endWeek: 2 },
+  { facility: "A공장동", taskName: "조립", equipment: "조립라인 #A", product: "VALVE-200 조립", workers: ["이서연", "임민재", "한우현"], colorClass: "bar-green", startWeek: 3, endWeek: 4 },
+  { facility: "A공장동", taskName: "검사", equipment: "3차원측정기 #01", product: "FLANGE-A 검사", workers: ["박준호"], colorClass: "bar-purple", startWeek: 1, endWeek: 2 },
+  { facility: "A공장동", taskName: "검사", equipment: "3차원측정기 #01", product: "PUMP-100 검사", workers: ["임지원"], colorClass: "bar-purple", startWeek: 3, endWeek: 4 },
   // B공장동
-  { facility: "B공장동", taskName: "절단", equipment: "레이저절단기 #01", product: "PLATE-E 절단", workers: ["김현우"], colorClass: "bar-green", startDay: 0, endDay: 3 },
-  { facility: "B공장동", taskName: "절단", equipment: "레이저절단기 #01", product: "PLATE-F 절단", workers: ["오세훈"], colorClass: "bar-green", startDay: 3, endDay: 5 },
-  { facility: "B공장동", taskName: "용접", equipment: "용접로봇 #01", product: "FRAME-G 용접", workers: ["박성우", "최윤재"], colorClass: "bar-green", startDay: 1, endDay: 4 },
-  { facility: "B공장동", taskName: "용접", equipment: "용접로봇 #01", product: "TANK-H 용접", workers: ["이민수"], colorClass: "bar-green", startDay: 4, endDay: 6 },
-  { facility: "B공장동", taskName: "도장", equipment: "도장라인 #03", product: "CASE-I 도장", workers: ["김하나"], colorClass: "bar-green", startDay: 2, endDay: 5 },
+  { facility: "B공장동", taskName: "절단", equipment: "레이저절단기 #01", product: "PLATE-E 절단", workers: ["김현우"], colorClass: "bar-green", startWeek: 0, endWeek: 2 },
+  { facility: "B공장동", taskName: "절단", equipment: "레이저절단기 #01", product: "PLATE-F 절단", workers: ["오세훈"], colorClass: "bar-green", startWeek: 3, endWeek: 4 },
+  { facility: "B공장동", taskName: "용접", equipment: "용접로봇 #01", product: "FRAME-G 용접", workers: ["박성우", "최윤재"], colorClass: "bar-green", startWeek: 1, endWeek: 3 },
+  { facility: "B공장동", taskName: "용접", equipment: "용접로봇 #01", product: "TANK-H 용접", workers: ["이민수"], colorClass: "bar-green", startWeek: 3, endWeek: 4 },
+  { facility: "B공장동", taskName: "도장", equipment: "도장라인 #03", product: "CASE-I 도장", workers: ["김하나"], colorClass: "bar-green", startWeek: 1, endWeek: 3 },
   // C공장동
-  { facility: "C공장동", taskName: "금형가공", equipment: "머시닝센터 #01", product: "MOLD-J 가공", workers: ["유재석"], colorClass: "bar-purple", startDay: 0, endDay: 2 },
-  { facility: "C공장동", taskName: "금형가공", equipment: "머시닝센터 #01", product: "MOLD-K 가공", workers: ["강동원"], colorClass: "bar-purple", startDay: 4, endDay: 6 },
-  { facility: "C공장동", taskName: "사출", equipment: "사출성형기 #01", product: "PRODUCT-L 사출", workers: ["손예진"], colorClass: "bar-pink", startDay: 2, endDay: 4 },
-  { facility: "C공장동", taskName: "사출", equipment: "사출성형기 #01", product: "PRODUCT-M 사출", workers: ["송혜교"], colorClass: "bar-pink", startDay: 5, endDay: 6 }
+  { facility: "C공장동", taskName: "금형가공", equipment: "머시닝센터 #01", product: "MOLD-J 가공", workers: ["유재석"], colorClass: "bar-purple", startWeek: 0, endWeek: 1 },
+  { facility: "C공장동", taskName: "금형가공", equipment: "머시닝센터 #01", product: "MOLD-K 가공", workers: ["강동원"], colorClass: "bar-purple", startWeek: 3, endWeek: 4 },
+  { facility: "C공장동", taskName: "사출", equipment: "사출성형기 #01", product: "PRODUCT-L 사출", workers: ["손예진"], colorClass: "bar-pink", startWeek: 1, endWeek: 3 },
+  { facility: "C공장동", taskName: "사출", equipment: "사출성형기 #01", product: "PRODUCT-M 사출", workers: ["송혜교"], colorClass: "bar-pink", startWeek: 4, endWeek: 4 }
 ];
 
 export default function SchedulesPage() {
@@ -64,34 +65,45 @@ export default function SchedulesPage() {
     return weekdays[date.getDay()];
   };
 
-  // ─── Weekly Gantt calculations ──────────────────────────────
-  // Get start date of the week (Monday)
-  const currentWeekMonday = useMemo(() => {
-    const d = new Date(selectedDate);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
-    return new Date(d.setDate(diff));
+  // ─── Gantt Weekly/Monthly calculations ──────────────────────
+  // Generate week ranges of the selected month
+  const monthWeeks = useMemo(() => {
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
+    
+    const weeks = [];
+    const firstDay = new Date(year, month, 1);
+    
+    // Find the Monday of the week containing firstDay
+    let day = firstDay.getDay();
+    let diff = firstDay.getDate() - day + (day === 0 ? -6 : 1);
+    let startOfWeek = new Date(firstDay.setDate(diff));
+    
+    // Generate 5 weeks
+    for (let w = 0; w < 5; w++) {
+      const weekMon = new Date(startOfWeek);
+      weekMon.setDate(startOfWeek.getDate() + w * 7);
+      
+      const weekSun = new Date(weekMon);
+      weekSun.setDate(weekMon.getDate() + 6);
+      
+      weeks.push({
+        label: `${w + 1}주차`,
+        range: `${weekMon.getMonth() + 1}.${weekMon.getDate()} - ${weekSun.getMonth() + 1}.${weekSun.getDate()}`,
+        monday: weekMon,
+        sunday: weekSun
+      });
+    }
+    return weeks;
   }, [selectedDate]);
 
-  // Generate 7 week dates
-  const weekDates = useMemo(() => {
-    const dates = [];
-    for (let i = 0; i < 7; i++) {
-      const temp = new Date(currentWeekMonday);
-      temp.setDate(currentWeekMonday.getDate() + i);
-      dates.push(temp);
-    }
-    return dates;
-  }, [currentWeekMonday]);
-
-  // Highlight today's date on Gantt if it falls in the current week
-  const todayIndex = useMemo(() => {
-    const today = new Date();
-    // For mockup consistency, let's also allow selectedDate as the "today cursor"
-    // Find index of selectedDate inside the current view week
-    const targetDateStr = selectedDate.toDateString();
-    return weekDates.findIndex(d => d.toDateString() === targetDateStr);
-  }, [selectedDate, weekDates]);
+  // Find which week index in monthWeeks contains selectedDate
+  const currentWeekIndexInMonth = useMemo(() => {
+    const time = selectedDate.getTime();
+    return monthWeeks.findIndex(
+      (w) => time >= w.monday.getTime() && time <= w.sunday.getTime() + 86400000
+    );
+  }, [selectedDate, monthWeeks]);
 
   // ─── Monthly Grid calculations ──────────────────────────────
   // Generate calendar days for the selected month
@@ -99,17 +111,15 @@ export default function SchedulesPage() {
     const year = selectedDate.getFullYear();
     const month = selectedDate.getMonth();
     
-    // First day of month
     const firstDay = new Date(year, month, 1);
-    // Number of days in month
     const totalDays = new Date(year, month + 1, 0).getDate();
-    // Day of week for first day (0=Sunday, 6=Saturday)
     const startOffset = firstDay.getDay();
 
     const days = [];
     // Pad previous month days
     const prevMonthTotalDays = new Date(year, month, 0).getDate();
-    for (let i = startOffset - 1; i >= 0; i--) {
+    const padCount = startOffset === 0 ? 6 : startOffset - 1; // Mon=1
+    for (let i = padCount - 1; i >= 0; i--) {
       days.push({
         date: new Date(year, month - 1, prevMonthTotalDays - i),
         isCurrentMonth: false
@@ -136,15 +146,35 @@ export default function SchedulesPage() {
     return days;
   }, [selectedDate]);
 
-  // Daily assignments for selected Date (filtered mock data)
+  // Filter only the 7 days of the selected week for the Weekly calendar view (Single Row)
+  const weeklyCalendarDays = useMemo(() => {
+    const d = new Date(selectedDate);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const mon = new Date(d.setDate(diff));
+    mon.setHours(0, 0, 0, 0);
+
+    const weekMonTime = mon.getTime();
+    const weekSunTime = weekMonTime + 6 * 86400000;
+
+    return calendarDays.filter((cell) => {
+      const cellTime = cell.date.getTime();
+      return cellTime >= weekMonTime && cellTime <= weekSunTime + 3600000;
+    });
+  }, [selectedDate, calendarDays]);
+
+  // Daily assignments for selected Date (filtered mock data based on current week index)
   const selectedDayTasks = useMemo(() => {
-    // We map startDay & endDay of week indexes to simulate daily tasks
-    // Let's filter mock tasks based on selected day of the week index (0-6)
-    const dayOfWeekIndex = selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1; // Mon=0, Sun=6
-    return MOCK_TASKS.filter(
-      (task) => dayOfWeekIndex >= task.startDay && dayOfWeekIndex <= task.endDay
+    const time = selectedDate.getTime();
+    const weekIdx = monthWeeks.findIndex(
+      (w) => time >= w.monday.getTime() && time <= w.sunday.getTime() + 86400000
     );
-  }, [selectedDate]);
+    if (weekIdx === -1) return [];
+    
+    return MOCK_TASKS.filter(
+      (task) => weekIdx >= task.startWeek && weekIdx <= task.endWeek
+    );
+  }, [selectedDate, monthWeeks]);
 
   // Date Navigation handlers
   const handlePrevDay = () => {
@@ -266,7 +296,7 @@ export default function SchedulesPage() {
           position: relative;
         }
 
-        /* ── 1) Week View (Gantt Chart) ── */
+        /* ── 1) Month View (Gantt Chart - Weekly Granularity) ── */
         .gantt-title-row {
           display: flex;
           justify-content: space-between;
@@ -314,10 +344,8 @@ export default function SchedulesPage() {
           text-align: center;
         }
         .gantt-header-day {
-          width: 9.5%;
+          width: 13.5%;
         }
-        .gantt-header-day.sat { color: #2563eb; }
-        .gantt-header-day.sun { color: #dc2626; }
         
         .gantt-col-facility {
           width: 12%;
@@ -358,7 +386,7 @@ export default function SchedulesPage() {
           top: 6px;
           bottom: 6px;
           left: 6px;
-          right: -6px; /* spans columns */
+          right: -6px;
           border-radius: 6px;
           padding: 6px 12px;
           font-size: 11px;
@@ -404,7 +432,7 @@ export default function SchedulesPage() {
           font-size: 12px;
         }
 
-        /* ── 2) Month View ── */
+        /* ── 2) Week View (Single Row Grid) ── */
         .month-grid-container {
           display: grid;
           grid-template-columns: 2fr 1.1fr;
@@ -433,7 +461,7 @@ export default function SchedulesPage() {
         .month-days-grid {
           display: grid;
           grid-template-columns: repeat(7, 1fr);
-          grid-auto-rows: 90px;
+          grid-auto-rows: 95px;
           gap: 4px;
         }
         .month-day-cell {
@@ -558,109 +586,181 @@ export default function SchedulesPage() {
         /* ── 3) Day View ── */
         .day-view-container {
           display: flex;
-          justify-content: center;
-          align-items: center;
-          padding: 20px 0;
-        }
-        .day-card {
+          flex-direction: column;
+          gap: 20px;
+          padding: 4px 0;
           width: 100%;
-          max-width: 440px;
-          background-color: white;
-          border: 1px solid var(--border, #cbd5e1);
-          border-radius: 16px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-          overflow: hidden;
         }
-        .day-card-header {
+        /* Day view top summary bar */
+        .day-summary-bar {
           display: flex;
-          justify-content: space-between;
           align-items: center;
-          padding: 16px 20px;
-          background-color: #f8fafc;
-          border-bottom: 1px solid var(--border, #e2e8f0);
+          justify-content: space-between;
+          background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+          border-radius: 12px;
+          padding: 20px 28px;
+          color: white;
         }
-        .day-nav-arrow {
-          font-size: 18px;
-          background: none;
-          border: none;
-          cursor: pointer;
-          color: var(--text-main);
-          font-weight: bold;
-          transition: transform 0.1s;
-        }
-        .day-nav-arrow:hover {
-          transform: scale(1.2);
-        }
-        .day-header-title {
-          font-size: 18px;
-          font-weight: 800;
-          color: var(--text-main);
-        }
-        .day-card-body {
-          padding: 24px;
+        .day-summary-left {
           display: flex;
           flex-direction: column;
-          gap: 16px;
-          min-height: 300px;
+          gap: 4px;
         }
-        .day-body-date {
-          font-size: 14px;
+        .day-summary-date {
+          font-size: 22px;
+          font-weight: 800;
+          letter-spacing: -0.5px;
+        }
+        .day-summary-sub {
+          font-size: 13px;
+          opacity: 0.75;
+        }
+        .day-summary-stats {
+          display: flex;
+          gap: 24px;
+        }
+        .day-stat-box {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+          background-color: rgba(255,255,255,0.12);
+          border-radius: 10px;
+          padding: 10px 20px;
+        }
+        .day-stat-value {
+          font-size: 24px;
+          font-weight: 900;
+        }
+        .day-stat-label {
+          font-size: 11px;
+          opacity: 0.7;
+          white-space: nowrap;
+        }
+        /* Day navigation row */
+        .day-nav-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .day-nav-arrow {
+          font-size: 16px;
+          background-color: white;
+          border: 1px solid var(--border, #e2e8f0);
+          border-radius: 8px;
+          padding: 6px 14px;
+          cursor: pointer;
+          color: var(--text-main);
           font-weight: 700;
-          color: var(--text-muted);
+          transition: all 0.15s;
         }
-        .day-body-facility {
+        .day-nav-arrow:hover {
+          background-color: #eff6ff;
+          border-color: #3b82f6;
+          color: #2563eb;
+        }
+        .day-nav-title {
           font-size: 15px;
           font-weight: 700;
-          color: #1e3a8a;
-          margin-bottom: 8px;
-        }
-        
-        .day-task-item {
-          border-bottom: 1px dashed var(--border, #cbd5e1);
-          padding-bottom: 12px;
-          margin-bottom: 4px;
-        }
-        .day-task-item:last-child {
-          border-bottom: none;
-          padding-bottom: 0;
-        }
-        
-        .day-task-product {
-          font-size: 14px;
-          font-weight: 800;
           color: var(--text-main);
+          flex: 1;
         }
-        .day-task-meta {
+        /* Task grid */
+        .day-tasks-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 16px;
+        }
+        .day-task-card {
+          background-color: white;
+          border: 1px solid var(--border, #e2e8f0);
+          border-radius: 12px;
+          padding: 18px 20px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+          transition: box-shadow 0.2s, transform 0.15s;
+        }
+        .day-task-card:hover {
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+          transform: translateY(-2px);
+        }
+        .day-task-card-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .day-task-facility-badge {
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 0.5px;
+          background-color: #eff6ff;
+          color: #1d4ed8;
+          border: 1px solid #bfdbfe;
+          border-radius: 6px;
+          padding: 3px 8px;
+        }
+        .day-task-product {
+          font-size: 15px;
+          font-weight: 800;
+          color: var(--text-main, #0f172a);
+          line-height: 1.3;
+        }
+        .day-task-divider {
+          height: 1px;
+          background-color: #f1f5f9;
+          margin: 0;
+        }
+        .day-task-meta-row {
+          display: flex;
+          align-items: center;
+          gap: 6px;
           font-size: 12px;
-          color: var(--text-muted);
-          margin-top: 2px;
+          color: var(--text-muted, #64748b);
+        }
+        .day-task-meta-icon {
+          font-size: 13px;
+          flex-shrink: 0;
         }
         .day-task-workers-title {
-          font-size: 12px;
+          font-size: 11px;
+          font-weight: 700;
           color: var(--text-muted);
-          margin-top: 6px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-top: 2px;
         }
         .day-task-workers-list {
           display: flex;
           flex-wrap: wrap;
-          gap: 6px;
-          margin-top: 4px;
+          gap: 5px;
         }
         .day-worker-dot {
-          background-color: #f1f5f9;
+          background-color: #f8fafc;
           border: 1px solid #e2e8f0;
-          border-radius: 4px;
-          padding: 1px 6px;
+          border-radius: 20px;
+          padding: 3px 10px;
           font-size: 11px;
+          font-weight: 600;
           color: #334155;
         }
+        /* Legacy compat */
+        .day-card { display: none; }
+        .day-card-header { display: none; }
+        .day-card-body { display: none; }
+        .day-body-date { display: none; }
+        .day-body-facility { display: none; }
+        .day-task-item { display: none; }
+        .day-task-meta { display: none; }
       `}</style>
 
       {/* ── Header tab navigation ── */}
       <div className="sched-header">
         <div className="sched-tabs">
-          <button className={`sched-tab ${currentTab === "month" ? "active" : ""}`} onClick={() => setCurrentTab("month")}>월간</button>
-          <button className={`sched-tab ${currentTab === "week" ? "active" : ""}`} onClick={() => { setCurrentTab("week"); handleGoToday(); }}>주간</button>
+          <button className={`sched-tab ${currentTab === "month" ? "active" : ""}`} onClick={() => { setCurrentTab("month"); handleGoToday(); }}>월간</button>
+          <button className={`sched-tab ${currentTab === "week" ? "active" : ""}`} onClick={() => setCurrentTab("week")}>주간</button>
           <button className={`sched-tab ${currentTab === "day" ? "active" : ""}`} onClick={() => setCurrentTab("day")}>일간</button>
         </div>
 
@@ -692,11 +792,11 @@ export default function SchedulesPage() {
       {/* ── Content Card ── */}
       <div className="sched-card">
 
-        {/* ── 1) WEEK VIEW (GANTT CHART) ── */}
-        {currentTab === "week" && (
+        {/* ── 1) MONTH VIEW (GANTT CHART - WEEKLY GRANULARITY) ── */}
+        {currentTab === "month" && (
           <div>
             <div className="gantt-title-row">
-              <span className="gantt-title">생산 일정 캘린더 ({getFormattedDate(weekDates[0])} - {getFormattedDate(weekDates[6])})</span>
+              <span className="gantt-title">생산 일정 캘린더 ({selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월)</span>
               <div className="gantt-filters">
                 <select className="gantt-select" onChange={(e) => showToast(`공장 필터: ${e.target.value}`)}>
                   <option value="전체">공장 선택 - 전체 공장</option>
@@ -721,18 +821,17 @@ export default function SchedulesPage() {
                     <th>공장동</th>
                     <th>작업명</th>
                     <th>필요장비</th>
-                    {weekDates.map((d, index) => (
-                      <th
-                        key={index}
-                        className={`gantt-header-day ${index === 5 ? "sat" : index === 6 ? "sun" : ""}`}
-                      >
-                        {d.getDate()}({getDayName(d)})
+                    {monthWeeks.map((week, index) => (
+                      <th key={index} className="gantt-header-day">
+                        {week.label}
+                        <div style={{ fontSize: "10px", fontWeight: "normal", color: "#64748b", marginTop: "2px" }}>
+                          ({week.range})
+                        </div>
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {/* We group rows logically by facility */}
                   {["A공장동", "B공장동", "C공장동"].map((facility) => {
                     const facilityTasks = MOCK_TASKS.filter(t => t.facility === facility);
                     return facilityTasks.map((task, idx) => {
@@ -746,24 +845,23 @@ export default function SchedulesPage() {
                           )}
                           <td className="gantt-col-task">{task.taskName}</td>
                           <td className="gantt-col-eq">{task.equipment}</td>
-                          {/* 7 Days cells */}
-                          {[0, 1, 2, 3, 4, 5, 6].map((dayIndex) => {
-                            const isStart = task.startDay === dayIndex;
-                            const isWithin = dayIndex >= task.startDay && dayIndex <= task.endDay;
-                            const colSpan = task.endDay - task.startDay + 1;
+                          {/* 5 Weeks cells */}
+                          {[0, 1, 2, 3, 4].map((weekIndex) => {
+                            const isStart = task.startWeek === weekIndex;
+                            const isWithin = weekIndex >= task.startWeek && weekIndex <= task.endWeek;
+                            const colSpan = task.endWeek - task.startWeek + 1;
 
                             if (isWithin && !isStart) {
-                              // Skip rendering cell because it is covered by colSpan from the start cell
                               return null;
                             }
 
                             return (
                               <td
-                                key={dayIndex}
+                                key={weekIndex}
                                 colSpan={isStart ? colSpan : 1}
                                 className="gantt-cell-day"
                               >
-                                {dayIndex === todayIndex && <div className="gantt-today-line"></div>}
+                                {weekIndex === currentWeekIndexInMonth && <div className="gantt-today-line"></div>}
                                 {isStart && (
                                   <div
                                     className={`gantt-block ${task.colorClass}`}
@@ -774,9 +872,10 @@ export default function SchedulesPage() {
                                     onMouseMove={handleMouseMove}
                                     onMouseLeave={() => setHoveredTask(null)}
                                     onClick={() => {
-                                      setSelectedDate(weekDates[dayIndex]);
+                                      // Go to the Monday of that week in day tab
+                                      setSelectedDate(monthWeeks[weekIndex].monday);
                                       setCurrentTab("day");
-                                      showToast(`${getFormattedDate(weekDates[dayIndex])} 일간 계획으로 이동했습니다.`);
+                                      showToast(`${monthWeeks[weekIndex].label} 상세 계획으로 이동했습니다.`);
                                     }}
                                   >
                                     {task.product} ({task.workers[0]} 외 {task.workers.length - 1}명)
@@ -795,14 +894,14 @@ export default function SchedulesPage() {
           </div>
         )}
 
-        {/* ── 2) MONTH VIEW ── */}
-        {currentTab === "month" && (
+        {/* ── 2) WEEK VIEW (CALENDAR GRID - SINGLE ROW) ── */}
+        {currentTab === "week" && (
           <div className="month-grid-container">
             {/* Calendar Left */}
             <div>
               <div className="gantt-title-row">
                 <span className="gantt-title">
-                  {selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월
+                  {selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월 {currentWeekIndexInMonth + 1}주차 주간 일정
                 </span>
               </div>
               
@@ -812,33 +911,31 @@ export default function SchedulesPage() {
                 ))}
               </div>
 
-              <div className="month-days-grid">
-                {calendarDays.map((day, idx) => {
+              <div className="month-days-grid" style={{ gridAutoRows: "110px" }}>
+                {weeklyCalendarDays.map((day, idx) => {
                   const isSelected = day.date.toDateString() === selectedDate.toDateString();
                   const isCurrentMonth = day.isCurrentMonth;
                   const dayOfWeek = day.date.getDay() === 0 ? 6 : day.date.getDay() - 1; // Mon=0
 
                   // Calculate mockup badges based on weekday index to simulate allocation
                   const dayBadges = [];
-                  if (isCurrentMonth) {
-                    if (dayOfWeek === 0 || dayOfWeek === 1) {
-                      dayBadges.push({ label: "A공장 4명", class: "cell-badge-green" });
-                      dayBadges.push({ label: "B공장 3명", class: "cell-badge-blue" });
-                    } else if (dayOfWeek === 2 || dayOfWeek === 3) {
-                      dayBadges.push({ label: "A공장 5명", class: "cell-badge-green" });
-                      dayBadges.push({ label: "C공장 2명", class: "cell-badge-orange" });
-                      if (dayOfWeek === 2) dayBadges.push({ label: "D공장 2명", class: "cell-badge-purple" });
-                    } else if (dayOfWeek === 4) {
-                      dayBadges.push({ label: "A공장 4명", class: "cell-badge-green" });
-                      dayBadges.push({ label: "B공장 5명", class: "cell-badge-blue" });
-                    } else if (dayOfWeek === 5) {
-                      dayBadges.push({ label: "A공장 3명", class: "cell-badge-green" });
-                      dayBadges.push({ label: "C공장 2명", class: "cell-badge-orange" });
-                      dayBadges.push({ label: "D공장 4명", class: "cell-badge-purple" });
-                    } else {
-                      dayBadges.push({ label: "A공장 2명", class: "cell-badge-green" });
-                      dayBadges.push({ label: "D공장 3명", class: "cell-badge-purple" });
-                    }
+                  if (dayOfWeek === 0 || dayOfWeek === 1) {
+                    dayBadges.push({ label: "A공장 4명", class: "cell-badge-green" });
+                    dayBadges.push({ label: "B공장 3명", class: "cell-badge-blue" });
+                  } else if (dayOfWeek === 2 || dayOfWeek === 3) {
+                    dayBadges.push({ label: "A공장 5명", class: "cell-badge-green" });
+                    dayBadges.push({ label: "C공장 2명", class: "cell-badge-orange" });
+                    if (dayOfWeek === 2) dayBadges.push({ label: "D공장 2명", class: "cell-badge-purple" });
+                  } else if (dayOfWeek === 4) {
+                    dayBadges.push({ label: "A공장 4명", class: "cell-badge-green" });
+                    dayBadges.push({ label: "B공장 5명", class: "cell-badge-blue" });
+                  } else if (dayOfWeek === 5) {
+                    dayBadges.push({ label: "A공장 3명", class: "cell-badge-green" });
+                    dayBadges.push({ label: "C공장 2명", class: "cell-badge-orange" });
+                    dayBadges.push({ label: "D공장 4명", class: "cell-badge-purple" });
+                  } else {
+                    dayBadges.push({ label: "A공장 2명", class: "cell-badge-green" });
+                    dayBadges.push({ label: "D공장 3명", class: "cell-badge-purple" });
                   }
 
                   return (
@@ -895,52 +992,87 @@ export default function SchedulesPage() {
         {/* ── 3) DAY VIEW ── */}
         {currentTab === "day" && (
           <div className="day-view-container">
-            <div className="day-card animate-in">
-              {/* Day navigation header */}
-              <div className="day-card-header">
-                <button className="day-nav-arrow" onClick={handlePrevDay}>&lt;</button>
-                <span className="day-header-title">
-                  {selectedDate.getMonth() + 1}/{selectedDate.getDate()} ({getDayName(selectedDate)})
+
+            {/* ── Summary Bar ── */}
+            <div className="day-summary-bar animate-in">
+              <div className="day-summary-left">
+                <span className="day-summary-date">
+                  {selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월 {selectedDate.getDate()}일 ({getDayName(selectedDate)})
                 </span>
-                <button className="day-nav-arrow" onClick={handleNextDay}>&gt;</button>
+                <span className="day-summary-sub">{getFormattedDate(selectedDate)} 일간 생산 배정 현황</span>
               </div>
-
-              {/* Day body card */}
-              <div className="day-card-body">
-                <span className="day-body-date">{getFormattedDate(selectedDate)}</span>
-                <div className="day-body-facility">A동 ({selectedDayTasks.length * 3}명 배정)</div>
-                <hr style={{ border: "none", height: "1px", backgroundColor: "#cbd5e1", margin: "8px 0" }} />
-
-                <div className="day-tasks-list" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                  {selectedDayTasks.length > 0 ? (
-                    selectedDayTasks.map((task, idx) => (
-                      <div key={idx} className="day-task-item animate-in" style={{ animationDelay: `${idx * 0.05}s` }}>
-                        <div className="day-task-product">제품 : {task.product.split(" ")[0]}</div>
-                        <div className="day-task-meta">
-                          작업명 : {task.taskName} ({task.equipment})
-                        </div>
-                        <div className="day-task-workers-title">작업자 이름:</div>
-                        <div className="day-task-workers-list">
-                          {task.workers.map((w, wIdx) => (
-                            <span key={wIdx} className="day-worker-dot">{w}</span>
-                          ))}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="panel-no-tasks" style={{ padding: "80px 0" }}>
-                      <p>🔋 해당 날짜에는 작업 일정이 비어있습니다.</p>
-                    </div>
-                  )}
+              <div className="day-summary-stats">
+                <div className="day-stat-box">
+                  <span className="day-stat-value">{selectedDayTasks.length}</span>
+                  <span className="day-stat-label">작업 공정 수</span>
+                </div>
+                <div className="day-stat-box">
+                  <span className="day-stat-value">{selectedDayTasks.reduce((acc, t) => acc + t.workers.length, 0)}</span>
+                  <span className="day-stat-label">배정 작업자 수</span>
+                </div>
+                <div className="day-stat-box">
+                  <span className="day-stat-value">{[...new Set(selectedDayTasks.map(t => t.facility))].length}</span>
+                  <span className="day-stat-label">가동 공장동 수</span>
                 </div>
               </div>
             </div>
+
+            {/* ── Navigation Row ── */}
+            <div className="day-nav-row">
+              <button className="day-nav-arrow" onClick={handlePrevDay}>&#8592; 이전날</button>
+              <span className="day-nav-title">
+                {selectedDate.getMonth() + 1}월 {selectedDate.getDate()}일 ({getDayName(selectedDate)}) 작업 목록
+              </span>
+              <button className="sched-btn" onClick={handleGoToday}>오늘</button>
+              <button className="day-nav-arrow" onClick={handleNextDay}>다음날 &#8594;</button>
+            </div>
+
+            {/* ── Task Grid ── */}
+            {selectedDayTasks.length > 0 ? (
+              <div className="day-tasks-grid">
+                {selectedDayTasks.map((task, idx) => (
+                  <div
+                    key={idx}
+                    className="day-task-card animate-in"
+                    style={{ animationDelay: `${idx * 0.04}s` }}
+                  >
+                    <div className="day-task-card-header">
+                      <span className="day-task-facility-badge">{task.facility}</span>
+                      <span style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 600 }}>
+                        {task.taskName}
+                      </span>
+                    </div>
+                    <div className="day-task-product">{task.product}</div>
+                    <div className="day-task-divider" />
+                    <div className="day-task-meta-row">
+                      <span className="day-task-meta-icon">⚙️</span>
+                      <span>{task.equipment}</span>
+                    </div>
+                    <div className="day-task-meta-row">
+                      <span className="day-task-meta-icon">🏭</span>
+                      <span>{task.facility} · {task.taskName} 공정</span>
+                    </div>
+                    <div className="day-task-workers-title">👷 배정 작업자</div>
+                    <div className="day-task-workers-list">
+                      {task.workers.map((w, wIdx) => (
+                        <span key={wIdx} className="day-worker-dot">{w}</span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="panel-no-tasks" style={{ padding: "80px 0", textAlign: "center" }}>
+                <p style={{ fontSize: "32px", marginBottom: "12px" }}>🔋</p>
+                <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--text-muted)" }}>해당 날짜에는 배정된 작업 일정이 없습니다.</p>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* ── Gantt Weekly Hover Tooltip ── */}
-      {currentTab === "week" && hoveredTask && (
+      {currentTab === "month" && hoveredTask && (
         <div
           className="gantt-tooltip animate-in"
           style={{ left: `${tooltipPos.x}px`, top: `${tooltipPos.y}px` }}
@@ -949,7 +1081,7 @@ export default function SchedulesPage() {
           <span>공장: {hoveredTask.facility}</span>
           <span>작업명: {hoveredTask.taskName} ({hoveredTask.equipment})</span>
           <span>작업 수 : {hoveredTask.workers.length}개 공정</span>
-          <span>총 작업시간 : {(hoveredTask.endDay - hoveredTask.startDay + 1) * 8}시간 (1일 8h 기준)</span>
+          <span>총 작업시간 : {(hoveredTask.endWeek - hoveredTask.startWeek + 1)}주일 (주 40h 기준)</span>
           <span>담당자 : {hoveredTask.workers.join(", ")}</span>
         </div>
       )}

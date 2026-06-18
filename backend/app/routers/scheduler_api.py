@@ -10,10 +10,12 @@ from app.schemas.scheduler import (
     DocumentCreate, DocumentResponse
 )
 
+# hasattr
+
 router = APIRouter(prefix="/api", tags=["Manufacturing Scheduler (API Stubs)"])
 
 
-# ─── Employee Endpoints ───────────────────────────────────────
+# ─────────────── Employee Endpoints ───────────────────────────────────────
 @router.get("/employees", response_model=List[EmployeeResponse], summary="직원 목록 조회")
 def get_employees():
     """등록된 모든 직원 목록을 조회합니다. (API 스텁)"""
@@ -31,7 +33,7 @@ def create_employee(employee: EmployeeCreate):
     }
 
 
-# ─── Order Endpoints ──────────────────────────────────────────
+# ─────────────── Order Endpoints ──────────────────────────────────────────
 @router.get("/orders", response_model=List[OrderResponse], summary="주문 목록 조회")
 def get_orders():
     """등록된 모든 생산 주문 목록을 조회합니다. (API 스텁)"""
@@ -50,7 +52,7 @@ def create_order(order: OrderCreate):
     }
 
 
-# ─── Task Endpoints ───────────────────────────────────────────
+# ─────────────── Task Endpoints ───────────────────────────────────────────
 @router.get("/tasks", response_model=List[TaskResponse], summary="작업 목록 조회")
 def get_tasks():
     """공정 흐름별 세부 작업 정의 목록을 조회합니다. (API 스텁)"""
@@ -68,7 +70,7 @@ def create_task(task: TaskCreate):
     }
 
 
-# ─── Schedule Endpoints ───────────────────────────────────────
+# ─────────────── Schedule Endpoints ───────────────────────────────────────
 @router.get("/schedules", response_model=List[ScheduleResponse], summary="생산 일정 목록 조회")
 def get_schedules():
     """배정된 생산 일정 목록을 조회합니다. (API 스텁)"""
@@ -87,7 +89,7 @@ def create_schedule(schedule: ScheduleCreate):
     }
 
 
-# ─── Schedule Assignment Endpoints ────────────────────────────
+# ─────────────── Schedule Assignment Endpoints ────────────────────────────
 @router.get("/schedule-assignments", response_model=List[ScheduleAssignmentResponse], summary="일정별 작업자 배정 현황 조회")
 def get_schedule_assignments():
     """생산 일정별로 배정된 작업자 매핑 목록을 조회합니다. (API 스텁)"""
@@ -103,22 +105,7 @@ def create_schedule_assignment(assignment: ScheduleAssignmentCreate):
         "order_id": assignment.order_id
     }
 
-# @router.post("/equipments", response_model=EquipmentResponse, status_code=status.HTTP_201_CREATED, summary="설비 및 장비 등록")
-# def create_equipment(equipment: EquipmentCreate):
-#     """새로운 생산 장비를 등록합니다. (API 스텁)"""
-#     return {
-#         "eq_id": "eq_new",
-#         "eq_name": equipment.eq_name,
-#         "eq_count": equipment.eq_count,
-#         "available_eq_count": equipment.available_eq_count,
-#         "check_cycle": equipment.check_cycle,
-#         "eq_status": equipment.eq_status,
-#         "check_date": equipment.check_date,
-#         "recent_check_date": equipment.recent_check_date
-#     }
-
-
-# ─── Document Endpoints ───────────────────────────────────────
+# ─────────────── Document Endpoints ───────────────────────────────────────
 @router.get("/documents", response_model=List[DocumentResponse], summary="업로드 문서 목록 조회")
 def get_documents():
     """업로드된 문서 및 임베딩 처리 상태를 조회합니다. (API 스텁)"""

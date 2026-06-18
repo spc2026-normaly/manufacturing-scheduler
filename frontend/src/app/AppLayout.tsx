@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, createContext, useContext } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import TeamManagement from "./TeamManagement";
 
 // Navigation items definition
@@ -8,10 +9,17 @@ const NAV_ITEMS = [
   { icon: "🏠", label: "메인", path: "dashboard" },
   { icon: "📄", label: "내 문서", path: "documents" },
   { icon: "👥", label: "팀원 관리", path: "employees" },
-  { icon: "📊", label: "안전 교육 현황", path: "safety-status" },
+  { icon: "📊", label: "안전 교육 현황", path: "safety-training" },
   { icon: "⚙️", label: "설비 관리", path: "equipments" },
   { icon: "⚙️", label: "설정", path: "settings" },
 ];
+
+// Toast Context for child pages
+export const ToastContext = createContext<(message: string) => void>(() => {});
+
+export function useToast() {
+  return useContext(ToastContext);
+}
 
 // Live Clock Component
 function LiveClock() {
@@ -49,7 +57,12 @@ interface Toast {
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const [activeMenu, setActiveMenu] = useState("메인");
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Determine active menu based on URL pathname
+  const activeMenu = pathname === "/employees" ? "팀원 관리" : pathname === "/safety-training" ? "안전 교육 현황" : "메인";
+
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<Array<{ sender: "user" | "bot"; text: string; time: string }>>([
@@ -70,9 +83,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [chatMessages, isAiOpen]);
 
   // Handle menu click
-  const handleMenuClick = (label: string) => {
-    setActiveMenu(label);
-    if (label !== "메인") {
+  const handleMenuClick = (label: string, path: string) => {
+    if (path === "dashboard") {
+      router.push("/");
+    } else if (path === "employees") {
+      router.push("/employees");
+    } else if (path === "safety-training") {
+      router.push("/safety-training");
+    } else {
       showToast(`'${label}' 메뉴는 개발 중입니다. 곧 릴리즈됩니다!`);
     }
   };
@@ -141,7 +159,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="app-layout">
+    <ToastContext.Provider value={showToast}>
+      <div className="app-layout">
       {/* ── Sidebar (Deep Dark Blue) ── */}
       <aside className="sidebar">
         <div className="sidebar-logo">
@@ -168,7 +187,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {NAV_ITEMS.map((item) => (
             <button
               key={item.label}
-              onClick={() => handleMenuClick(item.label)}
+              onClick={() => handleMenuClick(item.label, item.path)}
               className={`nav-item ${activeMenu === item.label ? "active" : ""}`}
             >
               <span className="nav-item-icon">{item.icon}</span>
@@ -214,14 +233,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* ── Dynamic Main Screen ── */}
         <main className="page-content">
-          {activeMenu === "메인" ? children : activeMenu === "팀원 관리" ? (
-            <TeamManagement onShowToast={showToast} />
+          {activeMenu === "메인" || activeMenu === "팀원 관리" || activeMenu === "안전 교육 현황" ? (
+            children
           ) : (
             <div className="placeholder-content card animate-in">
               <div className="placeholder-icon">🛠️</div>
               <h2>{activeMenu} 페이지 준비 중</h2>
               <p>해당 기능은 다음 마일스톤에 포함되어 현재 프론트엔드 목업을 준비하고 있습니다.</p>
-              <button className="btn-primary" onClick={() => setActiveMenu("메인")}>
+              <button className="btn-primary" onClick={() => router.push("/")}>
                 대시보드로 돌아가기
               </button>
             </div>
@@ -328,5 +347,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         ))}
       </div>
     </div>
+    </ToastContext.Provider>
   );
 }

@@ -45,7 +45,7 @@ const MOCK_EQUIPMENTS: Equipment[] = [
 export default function EquipmentsPage() {
   return (
     <div className="eq-container animate-in">
-      <style>{`
+    <style>{`
         .eq-container {
           padding: 24px;
           display: flex;
@@ -214,7 +214,7 @@ export default function EquipmentsPage() {
           color: #b06000;
           border-color: #feebc8;
         }
-      '}</style>
+      `}</style>
 
       {/* ── Top Dashboard Section ── */}
       <div className="eq-top-grid">

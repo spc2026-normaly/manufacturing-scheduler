@@ -9,6 +9,8 @@ from app.models import Base
 from app.routers.health import router as health_router
 from app.routers.scheduler_api import router as scheduler_router
 
+from app.routers.safety_training import router as safety_training_router
+from app.routers.equipment import router as equipment_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,6 +40,8 @@ app.add_middleware(
 # ─── 라우터 등록 ──────────────────────────────────────────────────────────────
 app.include_router(health_router)
 app.include_router(scheduler_router)
+app.include_router(safety_training_router)
+app.include_router(equipment_router)
 
 
 @app.get("/", include_in_schema=False)

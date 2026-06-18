@@ -7,8 +7,6 @@ from app.schemas.scheduler import (
     TaskCreate, TaskResponse,
     ScheduleCreate, ScheduleResponse,
     ScheduleAssignmentCreate, ScheduleAssignmentResponse,
-    SafetyTrainingCreate, SafetyTrainingResponse,
-    EquipmentCreate, EquipmentResponse,
     DocumentCreate, DocumentResponse
 )
 
@@ -105,45 +103,19 @@ def create_schedule_assignment(assignment: ScheduleAssignmentCreate):
         "order_id": assignment.order_id
     }
 
-
-# ─── Safety Training Endpoints ────────────────────────────────
-@router.get("/safety-trainings", response_model=List[SafetyTrainingResponse], summary="안전 교육 관리 내역 조회")
-def get_safety_trainings():
-    """직원들의 안전 교육 이수 목록을 조회합니다. (API 스텁)"""
-    return []
-
-@router.post("/safety-trainings", response_model=SafetyTrainingResponse, status_code=status.HTTP_201_CREATED, summary="안전 교육 내역 등록")
-def create_safety_training(training: SafetyTrainingCreate):
-    """새로운 안전 교육 이수 내역을 등록합니다. (API 스텁)"""
-    return {
-        "training_id": training.training_id,
-        "emp_id": training.emp_id,
-        "training_name": training.training_name,
-        "training_date": training.training_date,
-        "expired_date": training.expired_date,
-        "training_status": training.training_status
-    }
-
-
-# ─── Equipment Endpoints ──────────────────────────────────────
-@router.get("/equipments", response_model=List[EquipmentResponse], summary="설비 및 장비 목록 조회")
-def get_equipments():
-    """공장 설비 및 생산 장비 목록을 조회합니다. (API 스텁)"""
-    return []
-
-@router.post("/equipments", response_model=EquipmentResponse, status_code=status.HTTP_201_CREATED, summary="설비 및 장비 등록")
-def create_equipment(equipment: EquipmentCreate):
-    """새로운 생산 장비를 등록합니다. (API 스텁)"""
-    return {
-        "eq_id": "eq_new",
-        "eq_name": equipment.eq_name,
-        "eq_count": equipment.eq_count,
-        "available_eq_count": equipment.available_eq_count,
-        "check_cycle": equipment.check_cycle,
-        "eq_status": equipment.eq_status,
-        "check_date": equipment.check_date,
-        "recent_check_date": equipment.recent_check_date
-    }
+# @router.post("/equipments", response_model=EquipmentResponse, status_code=status.HTTP_201_CREATED, summary="설비 및 장비 등록")
+# def create_equipment(equipment: EquipmentCreate):
+#     """새로운 생산 장비를 등록합니다. (API 스텁)"""
+#     return {
+#         "eq_id": "eq_new",
+#         "eq_name": equipment.eq_name,
+#         "eq_count": equipment.eq_count,
+#         "available_eq_count": equipment.available_eq_count,
+#         "check_cycle": equipment.check_cycle,
+#         "eq_status": equipment.eq_status,
+#         "check_date": equipment.check_date,
+#         "recent_check_date": equipment.recent_check_date
+#     }
 
 
 # ─── Document Endpoints ───────────────────────────────────────

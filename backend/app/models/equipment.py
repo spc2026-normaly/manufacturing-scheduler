@@ -15,7 +15,7 @@ class EquipmentStatus(str, enum.Enum):
     고장 = "고장"
 
 
-class Equipment(Base, TimestampMixin):
+class Equipment(Base):
     __tablename__ = "equipments"
 
     eq_id: Mapped[str] = mapped_column(

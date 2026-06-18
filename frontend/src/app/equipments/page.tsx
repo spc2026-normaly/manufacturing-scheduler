@@ -214,7 +214,7 @@ export default function EquipmentsPage() {
           color: #b06000;
           border-color: #feebc8;
         }
-      `}</style>
+      '}</style>
 
       {/* ── Top Dashboard Section ── */}
       <div className="eq-top-grid">
@@ -260,6 +260,7 @@ export default function EquipmentsPage() {
           <table className="eq-table">
             <thead>
               <tr>
+                <th>No.</th>
                 <th>장비명</th>
                 <th>전체(개)</th>
                 <th>사용가능(개)</th>
@@ -271,6 +272,7 @@ export default function EquipmentsPage() {
             <tbody>
               {MOCK_EQUIPMENTS.map((eq, idx) => (
                 <tr key={eq.id} className="eq-row animate-in" style={{ animationDelay: `${idx * 0.05}s` }}>
+                  <td style={{ color: "var(--text-muted, #64748b)", fontWeight: 500 }}>No.{idx + 1}</td>
                   <td className="eq-cell-name">{eq.name}</td>
                   <td>{eq.total}</td>
                   <td>{eq.available}</td>

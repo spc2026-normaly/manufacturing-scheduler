@@ -7,3 +7,6 @@ pydantic==2.10.3
 pydantic-settings==2.7.0
 python-dotenv==1.0.1
 httpx==0.28.1          # 비동기 HTTP 클라이언트 (테스트 등)
+bcrypt==4.2.0
+python-jose[cryptography]==3.3.0
+

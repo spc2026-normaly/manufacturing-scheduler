@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 
 interface Employee {
   emp_id: string;
@@ -8,22 +8,8 @@ interface Employee {
   emp_name: string;
   login_pw: string;
   emp_role: "leader" | "member";
+  emp_date: string;
 }
-
-const INITIAL_EMPLOYEES: Employee[] = [
-  { emp_id: "emp_001", login_id: "emp1", emp_name: "이ㅇㅇ", login_pw: "password1", emp_role: "member" },
-  { emp_id: "emp_002", login_id: "emp1", emp_name: "이ㅇㅇ", login_pw: "password2", emp_role: "member" },
-  { emp_id: "emp_003", login_id: "emp1", emp_name: "이ㅇㅇ", login_pw: "password3", emp_role: "member" },
-  { emp_id: "emp_004", login_id: "emp1", emp_name: "이ㅇㅇ", login_pw: "password4", emp_role: "member" },
-  { emp_id: "emp_005", login_id: "emp1", emp_name: "이ㅇㅇ", login_pw: "password5", emp_role: "member" },
-  { emp_id: "emp_006", login_id: "emp1", emp_name: "이ㅇㅇ", login_pw: "password6", emp_role: "member" },
-  { emp_id: "emp_007", login_id: "leeyh",  emp_name: "이영희", login_pw: "pw12345",   emp_role: "leader" },
-  { emp_id: "emp_008", login_id: "parkms", emp_name: "박민수", login_pw: "pw12345",   emp_role: "member" },
-  { emp_id: "emp_009", login_id: "choijh", emp_name: "최지훈", login_pw: "pw12345",   emp_role: "member" },
-  { emp_id: "emp_010", login_id: "jungsh", emp_name: "정수현", login_pw: "pw12345",   emp_role: "member" },
-  { emp_id: "emp_011", login_id: "hongs",  emp_name: "홍길동", login_pw: "pw12345",   emp_role: "member" },
-  { emp_id: "emp_012", login_id: "limkk",  emp_name: "임꺽정", login_pw: "pw12345",   emp_role: "leader" },
-];
 
 const ITEMS_PER_PAGE = 6;
 
@@ -32,7 +18,7 @@ interface TeamManagementProps {
 }
 
 export default function TeamManagement({ onShowToast }: TeamManagementProps) {
-  const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,6 +29,37 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
   const [formId, setFormId] = useState("");
   const [formPw, setFormPw] = useState("");
   const [formRole, setFormRole] = useState<"leader" | "member">("member");
+
+  // Helper for Authorization Headers
+  const getAuthHeaders = () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    return {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : ""
+    };
+  };
+
+  // Fetch employees list
+  const fetchEmployees = async () => {
+    try {
+      const res = await fetch("/api/employees?limit=500", {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEmployees(data.items);
+      } else {
+        onShowToast("직원 목록을 가져오지 못했습니다.");
+      }
+    } catch (err) {
+      console.error("Failed to fetch employees", err);
+    }
+  };
+
+  // Fetch on mount
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
 
   // Filter by name search
   const filtered = useMemo(() => {
@@ -67,16 +84,24 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
     });
   };
 
-  const handleDelete = (emp: Employee) => {
+  const handleDelete = async (emp: Employee) => {
     if (confirm(`'${emp.emp_name}' 직원의 계정을 삭제하시겠습니까?`)) {
-      setEmployees((prev) => prev.filter((e) => e.emp_id !== emp.emp_id));
-      onShowToast(`'${emp.emp_name}' 계정이 삭제되었습니다.`);
-      setCurrentPage(1);
+      try {
+        const res = await fetch(`/api/employees/${emp.emp_id}`, {
+          method: "DELETE",
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          fetchEmployees();
+          onShowToast(`'${emp.emp_name}' 계정이 삭제되었습니다.`);
+          setCurrentPage(1);
+        } else {
+          alert("직원 삭제에 실패했습니다.");
+        }
+      } catch (err) {
+        alert("서버 통신 오류로 삭제하지 못했습니다.");
+      }
     }
-  };
-
-  const handleExport = (emp: Employee) => {
-    onShowToast(`'${emp.emp_name}' 직원 정보를 내보냈습니다.`);
   };
 
   const resetForm = () => {
@@ -86,7 +111,7 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
     setFormRole("member");
   };
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim() || !formId.trim() || !formPw.trim()) {
       alert("모든 항목을 입력해 주세요.");
@@ -96,18 +121,34 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
       alert("이미 사용 중인 아이디입니다.");
       return;
     }
-    const newEmp: Employee = {
-      emp_id: `emp_${Date.now()}`,
-      login_id: formId.trim(),
-      emp_name: formName.trim(),
-      login_pw: formPw.trim(),
-      emp_role: formRole,
-    };
-    setEmployees((prev) => [newEmp, ...prev]);
-    setIsModalOpen(false);
-    resetForm();
-    setCurrentPage(1);
-    onShowToast(`'${newEmp.emp_name}' 직원이 등록되었습니다.`);
+
+    try {
+      const today = new Date().toISOString().split("T")[0]; // 기존 레이아웃 유지를 위해 오늘 날짜 자동 할당
+      const res = await fetch("/api/employees", {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          emp_name: formName.trim(),
+          login_id: formId.trim(),
+          login_pw: formPw.trim(),
+          emp_role: formRole,
+          emp_date: today
+        })
+      });
+
+      if (res.ok) {
+        setIsModalOpen(false);
+        resetForm();
+        fetchEmployees();
+        setCurrentPage(1);
+        onShowToast(`'${formName.trim()}' 직원이 등록되었습니다.`);
+      } else {
+        const errData = await res.json();
+        alert(errData.detail || "직원 추가에 실패했습니다.");
+      }
+    } catch (err) {
+      alert("서버 통신 오류로 직원을 추가하지 못했습니다.");
+    }
   };
 
   // Build visible page numbers (show max 5)
@@ -155,8 +196,7 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
           </thead>
           <tbody>
             {paginated.length > 0 ? (
-              paginated.map((emp, idx) => {
-                const isFirst = idx === 0 && currentPage === 1;
+              paginated.map((emp) => {
                 const pwVisible = visiblePwIds.has(emp.emp_id);
                 return (
                   <tr key={emp.emp_id} className="tm-row">
@@ -181,12 +221,12 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
                     </td>
                     <td className="tm-cell-role">{emp.emp_role}</td>
                     <td className="tm-cell-actions">
-                                              <button
-                          className="tm-btn tm-btn-delete"
-                          onClick={() => handleDelete(emp)}
-                        >
-                          계정 삭제
-                        </button>
+                      <button
+                        className="tm-btn tm-btn-delete"
+                        onClick={() => handleDelete(emp)}
+                      >
+                        계정 삭제
+                      </button>
                     </td>
                   </tr>
                 );

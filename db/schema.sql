@@ -92,7 +92,7 @@ CREATE TABLE equipments (
     eq_count INTEGER NOT NULL,
     available_eq_count INTEGER NOT NULL,
     check_cycle INTEGER NOT NULL, -- check cycle in days
-    eq_status VARCHAR(50) NOT NULL DEFAULT '정상', -- 상태 (예: 정상, 점검 필요)
+    eq_status VARCHAR(50) NOT NULL DEFAULT '?뺤긽', -- ?곹깭 (?? ?뺤긽, ?먭? ?꾩슂)
     check_date DATE NOT NULL,
     recent_check_date DATE NOT NULL,
     CONSTRAINT PK_EQUIPMENTS PRIMARY KEY (eq_id)
@@ -125,6 +125,6 @@ CREATE TABLE documents (
 );
 
 -- 3. Comments for documentation and code clarity
-COMMENT ON COLUMN equipments.eq_status IS '장비 상태 (정상, 점검 필요 등)';
-COMMENT ON COLUMN equipments.check_cycle IS '점검 주기 (일 단위)';
-COMMENT ON COLUMN task.task_time IS '작업 소요 시간 (분 단위)';
+COMMENT ON COLUMN equipments.eq_status IS '?λ퉬 ?곹깭 (?뺤긽, ?먭? ?꾩슂 ??';
+COMMENT ON COLUMN equipments.check_cycle IS '?먭? 二쇨린 (???⑥쐞)';
+COMMENT ON COLUMN task.task_time IS '?묒뾽 ?뚯슂 ?쒓컙 (遺??⑥쐞)';

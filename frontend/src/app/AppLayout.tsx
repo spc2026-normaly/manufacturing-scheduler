@@ -7,6 +7,7 @@ import TeamManagement from "./TeamManagement";
 // Navigation items definition
 const NAV_ITEMS = [
   { icon: "🏠", label: "메인", path: "dashboard" },
+  { icon: "📅", label: "양산 일정", path: "schedules" },
   { icon: "📄", label: "내 문서", path: "documents" },
   { icon: "👥", label: "팀원 관리", path: "employees" },
   { icon: "📊", label: "안전 교육 현황", path: "safety-training" },
@@ -61,7 +62,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   // Determine active menu based on URL pathname
-  const activeMenu = pathname === "/employees" ? "팀원 관리" : pathname === "/safety-training" ? "안전 교육 현황" : pathname === "/equipments" ? "장비 관리" : pathname === "/documents" ? "내 문서" : "메인";
+  const activeMenu = pathname === "/employees" ? "팀원 관리" : pathname === "/safety-training" ? "안전 교육 현황" : pathname === "/equipments" ? "장비 관리" : pathname === "/documents" ? "내 문서" : pathname === "/schedules" ? "양산 일정" : "메인";
 
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -90,6 +91,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       router.push("/employees");
     } else if (path === "documents") {
       router.push("/documents");
+    } else if (path === "schedules") {
+      router.push("/schedules");
     } else if (path === "safety-training") {
       router.push("/safety-training");
     } else if (path === "equipments") {
@@ -237,7 +240,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* ── Dynamic Main Screen ── */}
         <main className="page-content">
-          {activeMenu === "메인" || activeMenu === "팀원 관리" || activeMenu === "안전 교육 현황" || activeMenu === "장비 관리" || activeMenu === "내 문서" ? (
+          {activeMenu === "메인" || activeMenu === "팀원 관리" || activeMenu === "안전 교육 현황" || activeMenu === "장비 관리" || activeMenu === "내 문서" || activeMenu === "양산 일정" ? (
             children
           ) : (
             <div className="placeholder-content card animate-in">

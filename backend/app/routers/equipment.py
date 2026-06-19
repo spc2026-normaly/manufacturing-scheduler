@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.models.equipment import Equipment
+from app.routers.auth import require_leader
 from app.schemas.scheduler import EquipmentCreate, EquipmentResponse
 
 router = APIRouter(prefix="/api/equipments", tags=["Equipment"])
@@ -15,7 +16,8 @@ router = APIRouter(prefix="/api/equipments", tags=["Equipment"])
 def get_equipments(
     status: Optional[str] = Query(None, description="상태 필터 (정상, 점검 필요 등)"),
     upcoming_days: Optional[int] = Query(None, description="N일 이내 점검 예정 장비 필터"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: object = Depends(require_leader),
 ):
     """장비 목록 조회. 상태 필터 및 다가오는 점검일 필터 지원."""
     stmt = select(Equipment)
@@ -30,7 +32,7 @@ def get_equipments(
 
 
 @router.get("/{eq_id}", response_model=EquipmentResponse, summary="장비 단건 조회")
-def get_equipment(eq_id: str, db: Session = Depends(get_db)):
+def get_equipment(eq_id: str, db: Session = Depends(get_db), _: object = Depends(require_leader)):
     """특정 장비의 상세 정보를 조회합니다."""
     equipment = db.get(Equipment, eq_id)
     if not equipment:
@@ -39,7 +41,7 @@ def get_equipment(eq_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=EquipmentResponse, status_code=status.HTTP_201_CREATED, summary="장비 등록")
-def create_equipment(data: EquipmentCreate, db: Session = Depends(get_db)):
+def create_equipment(data: EquipmentCreate, db: Session = Depends(get_db), _: object = Depends(require_leader)):
     equipment = Equipment(**data.model_dump())
     db.add(equipment)
     db.commit()
@@ -48,7 +50,7 @@ def create_equipment(data: EquipmentCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{eq_id}", response_model=EquipmentResponse, summary="장비 수정")
-def update_equipment(eq_id: str, data: EquipmentCreate, db: Session = Depends(get_db)):
+def update_equipment(eq_id: str, data: EquipmentCreate, db: Session = Depends(get_db), _: object = Depends(require_leader)):
     equipment = db.get(Equipment, eq_id)
     if not equipment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="장비를 찾을 수 없습니다.")
@@ -60,7 +62,7 @@ def update_equipment(eq_id: str, data: EquipmentCreate, db: Session = Depends(ge
 
 
 @router.delete("/{eq_id}", status_code=status.HTTP_204_NO_CONTENT, summary="장비 삭제")
-def delete_equipment(eq_id: str, db: Session = Depends(get_db)):
+def delete_equipment(eq_id: str, db: Session = Depends(get_db), _: object = Depends(require_leader)):
     equipment = db.get(Equipment, eq_id)
     if not equipment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="장비를 찾을 수 없습니다.")

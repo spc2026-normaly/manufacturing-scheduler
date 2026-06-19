@@ -24,6 +24,7 @@ export default function EquipmentsPage() {
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [upcomingEquipments, setUpcomingEquipments] = useState<UpcomingEquipment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isForbidden, setIsForbidden] = useState(false);
 
   // Helper for Authorization Headers
   const getAuthHeaders = () => {
@@ -41,6 +42,11 @@ export default function EquipmentsPage() {
 
       // 1. Fetch entire equipments
       const eqRes = await fetch("/api/equipments", { headers });
+      if (eqRes.status === 403) {
+        setIsForbidden(true);
+        setLoading(false);
+        return;
+      }
       let eqData: Equipment[] = [];
       if (eqRes.ok) {
         eqData = await eqRes.json();
@@ -94,6 +100,20 @@ export default function EquipmentsPage() {
         color: "var(--text-muted, #64748b)"
       }}>
         데이터 로딩 중...
+      </div>
+    );
+  }
+
+  if (isForbidden) {
+    return (
+      <div style={{ padding: "40px", display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+        <div style={{ padding: "40px", textAlign: "center", borderColor: "#fca5a5", border: "1px solid #fecaca", borderRadius: "12px", backgroundColor: "#fff", maxWidth: "500px", width: "100%" }}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>🚫</div>
+          <h2 style={{ color: "#dc2626", fontSize: "20px", fontWeight: "bold" }}>접근 권한이 없습니다</h2>
+          <p style={{ color: "#4b5563", marginTop: "8px", fontSize: "14px" }}>
+            이 데이터를 조회하거나 관리할 수 있는 권한이 없습니다. (API 403 Forbidden)
+          </p>
+        </div>
       </div>
     );
   }

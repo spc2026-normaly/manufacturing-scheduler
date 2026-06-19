@@ -23,6 +23,7 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [visiblePwIds, setVisiblePwIds] = useState<Set<string>>(new Set());
+  const [isForbidden, setIsForbidden] = useState(false);
 
   // Create form state
   const [formName, setFormName] = useState("");
@@ -45,6 +46,10 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
       const res = await fetch("/api/employees?limit=500", {
         headers: getAuthHeaders()
       });
+      if (res.status === 403) {
+        setIsForbidden(true);
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setEmployees(data.items);
@@ -156,6 +161,20 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
   const startPage = Math.max(1, currentPage - 2);
   const endPage = Math.min(totalPages, startPage + 4);
   for (let i = startPage; i <= endPage; i++) pageNumbers.push(i);
+
+  if (isForbidden) {
+    return (
+      <div style={{ padding: "40px", display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh", width: "100%" }}>
+        <div style={{ padding: "40px", textAlign: "center", borderColor: "#fca5a5", border: "1px solid #fecaca", borderRadius: "12px", backgroundColor: "#fff", maxWidth: "500px", width: "100%" }}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>🚫</div>
+          <h2 style={{ color: "#dc2626", fontSize: "20px", fontWeight: "bold" }}>접근 권한이 없습니다</h2>
+          <p style={{ color: "#4b5563", marginTop: "8px", fontSize: "14px" }}>
+            이 데이터를 조회하거나 관리할 수 있는 권한이 없습니다. (API 403 Forbidden)
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="tm-page">

@@ -15,20 +15,18 @@ interface AIChatbotProps {
   initialMessages?: ChatMessage[];
 }
 
-// ── Simulated RAG response generator ──────────────────────────────
-function generateBotResponse(userMsg: string): string {
-  const msgLower = userMsg.toLowerCase();
-
-  if (msgLower.includes("주기") || msgLower.includes("압축기")) {
-    return "압축기 점검 주기는 다음과 같습니다.\n\n* **일상 점검**: 매일\n* **정기 점검**: 1개월\n* **정밀 점검**: 6개월\n* **오버홀**: 1년\n\n(출처: 설비점검_리스트.xlsx)";
-  } else if (msgLower.includes("보일러") || msgLower.includes("체크리스트")) {
-    return "B공장 보일러 점검 체크리스트 핵심 요약입니다:\n\n1. **압력계 지침 확인** (정상 범위 유지 여부)\n2. **연소 상태 점검** (불꽃 색상 및 매연 여부)\n3. **급수 펌프 및 밸브 누수 여부**\n4. **배관 차단 밸브 오동작 검사**\n\n매주 금요일 정기 점검 시 기록 필수입니다.";
-  } else if (msgLower.includes("미이수") || msgLower.includes("교육")) {
-    return "안전 교육 미이수자 현황입니다:\n\n* **미이수 인원**: 총 8명 (이수율 93.7%)\n* **주요 미이수자**: 박사원, 임꺽정 (장기 출장 및 교대 근무 변경 사유)\n* **조치 계획**: 6월 22일까지 비대면 안전 보건 교육 보충 과정 이수 권고 문자 발송 완료.";
-  } else if (msgLower.includes("출근") || msgLower.includes("직원") || msgLower.includes("인원")) {
-    return "오늘 등록된 전체 직원은 **총 128명**이며, 금일 근무 편성에 따라 A동에 **총 11명**이 배치되어 정상 업무를 수행하고 있습니다.";
+// ── API call: POST /api/chatbot ────────────────────────────────────
+async function fetchBotReply(message: string): Promise<string> {
+  const res = await fetch("/api/chatbot", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+  if (!res.ok) {
+    throw new Error(`서버 오류: ${res.status}`);
   }
-  return `"${userMsg}"에 관한 RAG 조회 결과입니다.\n\n문서 분석 결과 관련 규정이 조회되었습니다. 추가 상세 데이터 확인을 위해서는 '내 문서'에서 표준 작업 절차서(SOP)를 참조하시기 바랍니다.`;
+  const data: { reply: string; source: string } = await res.json();
+  return data.reply;
 }
 
 const DEFAULT_MESSAGES: ChatMessage[] = [
@@ -59,6 +57,7 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [chatInput, setChatInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(
     initialMessages ?? DEFAULT_MESSAGES
   );
@@ -81,17 +80,24 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
   const appendMessage = (msg: ChatMessage) =>
     setChatMessages((prev) => [...prev, msg]);
 
-  const handleSend = (text: string) => {
-    if (!text.trim()) return;
+  const handleSend = async (text: string) => {
+    if (!text.trim() || isLoading) return;
     const userMsg = text.trim();
     appendMessage({ sender: "user", text: userMsg, time: getTimeString() });
-    setTimeout(() => {
+    setIsLoading(true);
+    try {
+      const reply = await fetchBotReply(userMsg);
+      appendMessage({ sender: "bot", text: reply, time: getTimeString() });
+    } catch (err) {
       appendMessage({
         sender: "bot",
-        text: generateBotResponse(userMsg),
+        text: "⚠️ 서버와 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
         time: getTimeString(),
       });
-    }, 600);
+      console.error("[AIChatbot] API error:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -224,12 +230,18 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
           <input
             type="text"
             className="chat-textbox"
-            placeholder="질문을 입력하세요..."
+            placeholder={isLoading ? "응답을 기다리는 중..." : "질문을 입력하세요..."}
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
+            disabled={isLoading}
           />
-          <button type="submit" className="chat-send-btn">
-            전송
+          <button
+            type="submit"
+            className="chat-send-btn"
+            disabled={isLoading}
+            style={{ opacity: isLoading ? 0.6 : 1, cursor: isLoading ? "not-allowed" : "pointer" }}
+          >
+            {isLoading ? "..." : "전송"}
           </button>
         </form>
       </div>

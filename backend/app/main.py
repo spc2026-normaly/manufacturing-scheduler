@@ -14,6 +14,7 @@ from app.routers.employees import router as employees_router
 from app.routers.safety_training import router as safety_training_router
 from app.routers.equipment import router as equipment_router
 from app.routers.documents import router as documents_router
+from app.routers.chatbot import router as chatbot_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -48,6 +49,7 @@ app.include_router(scheduler_router)
 app.include_router(safety_training_router)
 app.include_router(equipment_router)
 app.include_router(documents_router)
+app.include_router(chatbot_router)
 
 
 @app.get("/", include_in_schema=False)

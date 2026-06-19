@@ -10,124 +10,79 @@ interface HealthData {
   version: string;
 }
 
-interface WorkerAssignment {
-  role: string;
-  taskName: string;
-  workers: string[];
-}
-
-interface DayAssignment {
-  dateStr: string;
+interface CalendarScheduleDto {
+  id: string;
   facility: string;
-  totalWorkers: number;
-  assignments: WorkerAssignment[];
-  pills: Array<{ label: string; count: number; colorClass: string }>;
+  task_name: string;
+  task_type: string;
+  equipment: string;
+  workers: string[];
+  product: string;
+  order_num: string;
+  start_date: string;
+  end_date: string;
 }
 
-// ─── Mock Schedule Data for June 2026 ────────────────────────
-const MOCK_DAILY_SCHEDULES: Record<number, DayAssignment> = {
-  15: {
-    dateStr: "2026.06.15",
-    facility: "A동",
-    totalWorkers: 7,
-    pills: [
-      { label: "A공장", count: 4, colorClass: "pill-green" },
-      { label: "B공장", count: 3, colorClass: "pill-blue" }
-    ],
-    assignments: [
-      { role: "RAM", taskName: "원료 배합 및 반죽믹싱", workers: ["이대리", "박사원"] },
-      { role: "RAM", taskName: "반죽 분할 및 발효", workers: ["이대리"] },
-      { role: "RAM", taskName: "포장 작업", workers: ["박사원", "임꺽정", "홍길동"] }
-    ]
-  },
-  16: {
-    dateStr: "2026.06.16",
-    facility: "A동",
-    totalWorkers: 7,
-    pills: [
-      { label: "A공장", count: 5, colorClass: "pill-green" },
-      { label: "C공장", count: 2, colorClass: "pill-orange" }
-    ],
-    assignments: [
-      { role: "RAM", taskName: "원료 배합 및 반죽믹싱", workers: ["이대리", "박사원", "김선생"] },
-      { role: "RAM", taskName: "반죽 분할 및 발효", workers: ["박사원", "최인턴"] }
-    ]
-  },
-  17: {
-    dateStr: "2026.06.17",
-    facility: "A동",
-    totalWorkers: 11,
-    pills: [
-      { label: "A공장", count: 6, colorClass: "pill-green" },
-      { label: "B공장", count: 3, colorClass: "pill-blue" },
-      { label: "D공장", count: 2, colorClass: "pill-purple" }
-    ],
-    assignments: [
-      { role: "RAM", taskName: "원료 배합 및 반죽믹싱", workers: ["이대리", "박사원", "최인턴", "김부장"] },
-      { role: "RAM", taskName: "반죽 분할 및 발효", workers: ["이대리", "박사원"] },
-      { role: "RAM", taskName: "오븐 베이킹", workers: ["박사원", "홍길동", "임꺽정"] },
-      { role: "RAM", taskName: "제품 냉각 및 자동 포장", workers: ["이대리", "김부장"] }
-    ]
-  },
-  18: {
-    dateStr: "2026.06.18",
-    facility: "A동",
-    totalWorkers: 7,
-    pills: [
-      { label: "A공장", count: 5, colorClass: "pill-green" },
-      { label: "C공장", count: 2, colorClass: "pill-orange" }
-    ],
-    assignments: [
-      { role: "RAM", taskName: "원료 배합 및 반죽믹싱", workers: ["이대리", "박사원"] },
-      { role: "RAM", taskName: "반죽 분할 및 발효", workers: ["이대리"] },
-      { role: "RAM", taskName: "제품 냉각 및 자동 포장", workers: ["박사원", "김부장", "홍길동", "임꺽정"] }
-    ]
-  },
-  19: {
-    dateStr: "2026.06.19",
-    facility: "A동",
-    totalWorkers: 8,
-    pills: [
-      { label: "A공장", count: 4, colorClass: "pill-green" },
-      { label: "B공장", count: 4, colorClass: "pill-blue" }
-    ],
-    assignments: [
-      { role: "RAM", taskName: "원료 배합 및 반죽믹싱", workers: ["이대리", "최인턴"] },
-      { role: "RAM", taskName: "반죽 분할 및 발효", workers: ["박사원", "홍길동", "임꺽정", "김부장"] }
-    ]
-  },
-  20: {
-    dateStr: "2026.06.20",
-    facility: "A동",
-    totalWorkers: 14,
-    pills: [
-      { label: "A공장", count: 3, colorClass: "pill-green" },
-      { label: "B공장", count: 5, colorClass: "pill-blue" },
-      { label: "C공장", count: 2, colorClass: "pill-orange" },
-      { label: "D공장", count: 4, colorClass: "pill-purple" }
-    ],
-    assignments: [
-      { role: "RAM", taskName: "설비 정기 예방 점검", workers: ["김부장", "이대리", "박사원"] },
-      { role: "RAM", taskName: "현장 안전 진단", workers: ["김부장", "이대리", "박사원", "홍길동", "임꺽정", "최인턴"] }
-    ]
-  },
-  21: {
-    dateStr: "2026.06.21",
-    facility: "A동",
-    totalWorkers: 5,
-    pills: [
-      { label: "A공장", count: 2, colorClass: "pill-green" },
-      { label: "D공장", count: 3, colorClass: "pill-purple" }
-    ],
-    assignments: [
-      { role: "RAM", taskName: "공정 일요 당직 정비", workers: ["이대리", "박사원", "최인턴", "홍길동", "임꺽정"] }
-    ]
+interface CalendarTask {
+  id: string;
+  facility: string;
+  taskName: string;
+  taskType: string;
+  equipment: string;
+  workers: string[];
+  product: string;
+  orderNum: string;
+  startDate: Date;
+  endDate: Date;
+}
+
+type CalendarView = "week" | "month";
+
+const toYmd = (date: Date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const startOfWeekMonday = (date: Date) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const endOfWeekSunday = (date: Date) => {
+  const d = startOfWeekMonday(date);
+  d.setDate(d.getDate() + 6);
+  d.setHours(23, 59, 59, 999);
+  return d;
+};
+
+const getFacilityOrder = (facility: string) => {
+  const match = facility.trim().match(/^([A-Ga-g])/);
+  if (!match) {
+    return Number.MAX_SAFE_INTEGER;
   }
+  return match[1].toUpperCase().charCodeAt(0) - 65;
+};
+
+const compareByFacility = (a: string, b: string) => {
+  const orderDiff = getFacilityOrder(a) - getFacilityOrder(b);
+  if (orderDiff !== 0) {
+    return orderDiff;
+  }
+  return a.localeCompare(b, "ko");
 };
 
 export default function DashboardPage() {
   const [health, setHealth] = useState<HealthData | null>(null);
-  const [selectedDay, setSelectedDay] = useState<number>(17); // Set default to June 17th as highlighted in mockups
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [calendarView, setCalendarView] = useState<CalendarView>("week");
+  const [factoryFilter, setFactoryFilter] = useState<string>("전체 공장");
+  const [calendarTasks, setCalendarTasks] = useState<CalendarTask[]>([]);
   const [toastText, setToastText] = useState<string | null>(null);
 
   // Real-time API States
@@ -143,6 +98,47 @@ export default function DashboardPage() {
       "Authorization": token ? `Bearer ${token}` : ""
     };
   };
+
+  const getDateRangeTitle = () => {
+    if (calendarView === "week") {
+      const weekStart = startOfWeekMonday(selectedDate);
+      const weekEnd = endOfWeekSunday(selectedDate);
+      return `주간 일정 (${toYmd(weekStart).replace(/-/g, ".")} - ${toYmd(weekEnd).slice(5).replace(/-/g, ".")})`;
+    }
+    return `${selectedDate.getFullYear()}년 ${selectedDate.getMonth() + 1}월 일정`;
+  };
+
+  const calendarDays = (() => {
+    if (calendarView === "week") {
+      const monday = startOfWeekMonday(selectedDate);
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        return { date: d, isCurrentMonth: true };
+      });
+    }
+
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const start = startOfWeekMonday(firstDay);
+
+    return Array.from({ length: 42 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return { date: d, isCurrentMonth: d.getMonth() === month };
+    });
+  })();
+
+  const selectedDayTasks = calendarTasks
+    .filter((task) => {
+      const dayStart = new Date(selectedDate);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(selectedDate);
+      dayEnd.setHours(23, 59, 59, 999);
+      return task.startDate <= dayEnd && task.endDate >= dayStart;
+    })
+    .sort((a, b) => compareByFacility(a.facility, b.facility));
 
   // Fetch API Health & Dashboard data
   useEffect(() => {
@@ -210,27 +206,56 @@ export default function DashboardPage() {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    const fetchCalendarSummary = async () => {
+      try {
+        const params = new URLSearchParams({
+          view: calendarView,
+          date: toYmd(selectedDate),
+        });
+
+        if (factoryFilter !== "전체 공장") {
+          params.append("factory", factoryFilter);
+        }
+
+        const res = await fetch(`/api/schedules/calendar?${params.toString()}`, {
+          headers: getAuthHeaders(),
+        });
+
+        if (!res.ok) {
+          throw new Error(`calendar fetch failed: ${res.status}`);
+        }
+
+        const data: CalendarScheduleDto[] = await res.json();
+        const mapped: CalendarTask[] = data.map((row) => ({
+          id: row.id,
+          facility: row.facility,
+          taskName: row.task_name,
+          taskType: row.task_type,
+          equipment: row.equipment,
+          workers: row.workers ?? [],
+          product: row.product,
+          orderNum: row.order_num,
+          startDate: new Date(row.start_date),
+          endDate: new Date(row.end_date),
+        }));
+
+        setCalendarTasks(mapped);
+      } catch (error) {
+        console.error("Failed to load calendar summary data", error);
+        setCalendarTasks([]);
+      }
+    };
+
+    fetchCalendarSummary();
+  }, [calendarView, selectedDate, factoryFilter]);
+
   const triggerToast = (text: string) => {
     setToastText(text);
     setTimeout(() => {
       setToastText(null);
     }, 2500);
   };
-
-  // Selected schedule data
-  const currentSchedule = MOCK_DAILY_SCHEDULES[selectedDay] || {
-    dateStr: `2026.06.${selectedDay.toString().padStart(2, "0")}`,
-    facility: "A동",
-    totalWorkers: 0,
-    assignments: [],
-    pills: []
-  };
-
-  // Generate calendar days for June 2026 (June 1st is Monday)
-  const calendarDays = [];
-  for (let i = 1; i <= 30; i++) {
-    calendarDays.push(i);
-  }
 
   // Weekday labels
   const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
@@ -317,25 +342,29 @@ export default function DashboardPage() {
         <div className="card calendar-card">
           <div className="calendar-card-header">
             <div className="calendar-nav">
-              <span className="calendar-current-month">주간 일정 (2026.06.15 - 06.21)</span>
+              <span className="calendar-current-month">{getDateRangeTitle()}</span>
               
               {/* Factory Filter Dropdown as seen in mockup */}
               <select 
                 className="nav-today-btn" 
                 style={{ marginLeft: "14px", paddingRight: "10px" }}
-                onChange={(e) => triggerToast(`'${e.target.value}' 필터 적용됨`)}
+                value={factoryFilter}
+                onChange={(e) => setFactoryFilter(e.target.value)}
               >
                 <option value="전체 공장">공장 선택 - 전체 공장</option>
-                <option value="A공장">A공장</option>
-                <option value="B공장">B공장</option>
-                <option value="C공장">C공장</option>
-                <option value="D공장">D공장</option>
+                <option value="A공장동">A공장</option>
+                <option value="B공장동">B공장</option>
+                <option value="C공장동">C공장</option>
+                <option value="D공장동">D공장</option>
+                <option value="E공장동">E공장</option>
+                <option value="F공장동">F공장</option>
+                <option value="G공장동">G공장</option>
               </select>
             </div>
             
             <div className="calendar-view-modes">
-              <button className="mode-btn" onClick={() => triggerToast("주간 보기 전환")}>주간</button>
-              <button className="mode-btn active">월간</button>
+              <button className={`mode-btn ${calendarView === "week" ? "active" : ""}`} onClick={() => setCalendarView("week")}>주간</button>
+              <button className={`mode-btn ${calendarView === "month" ? "active" : ""}`} onClick={() => setCalendarView("month")}>월간</button>
             </div>
           </div>
 
@@ -348,39 +377,59 @@ export default function DashboardPage() {
           </div>
 
           <div className="calendar-days-grid">
-            {calendarDays.map((day) => {
-              const hasSchedule = !!MOCK_DAILY_SCHEDULES[day];
-              const schedule = MOCK_DAILY_SCHEDULES[day];
-              const isSelected = selectedDay === day;
-              const isToday = day === 18; // Today is June 18th in mock data
+            {calendarDays.map((cell) => {
+              const cellStart = new Date(cell.date);
+              cellStart.setHours(0, 0, 0, 0);
+              const cellEnd = new Date(cell.date);
+              cellEnd.setHours(23, 59, 59, 999);
+
+              const tasksOfDay = calendarTasks.filter((task) => task.startDate <= cellEnd && task.endDate >= cellStart);
+              const hasSchedule = tasksOfDay.length > 0;
+              const isSelected = cell.date.toDateString() === selectedDate.toDateString();
+              const now = new Date();
+              const isToday =
+                cell.date.getFullYear() === now.getFullYear() &&
+                cell.date.getMonth() === now.getMonth() &&
+                cell.date.getDate() === now.getDate();
+
+              const workersByFacility = new Map<string, Set<string>>();
+              tasksOfDay.forEach((task) => {
+                if (!workersByFacility.has(task.facility)) {
+                  workersByFacility.set(task.facility, new Set<string>());
+                }
+                task.workers.forEach((worker) => workersByFacility.get(task.facility)!.add(worker));
+              });
+
+              const dayBadges = Array.from(workersByFacility.entries())
+                .sort(([facilityA], [facilityB]) => compareByFacility(facilityA, facilityB))
+                .slice(0, 3)
+                .map(([facility, workers], idx) => {
+                  const colorClass = idx === 0 ? "pill-green" : idx === 1 ? "pill-blue" : "pill-orange";
+                  return {
+                    text: `${facility.replace("공장동", "공장")} ${workers.size}명`,
+                    colorClass,
+                  };
+                });
 
               return (
                 <div
-                  key={day}
-                  className={`calendar-day-cell ${isSelected ? "selected" : ""} ${isToday ? "today" : ""} ${hasSchedule ? "has-data" : ""}`}
-                  onClick={() => setSelectedDay(day)}
+                  key={toYmd(cell.date)}
+                  className={`calendar-day-cell ${isSelected ? "selected" : ""} ${isToday ? "today" : ""} ${hasSchedule ? "has-data" : ""} ${cell.isCurrentMonth ? "" : "other-month"}`}
+                  onClick={() => setSelectedDate(new Date(cell.date))}
                 >
                   <div className="day-number-wrapper">
-                    <span className="day-number">{day}</span>
+                    <span className="day-number">{cell.date.getDate()}</span>
                     {isToday && <span className="today-dot">오늘</span>}
                   </div>
                   
                   {/* Staff Allocation Mini Pills */}
-                  {hasSchedule && (
+                  {dayBadges.length > 0 && (
                     <div className="day-pills-list">
-                      {schedule.pills.map((p, pIdx) => (
-                        <div key={pIdx} className={`calendar-staff-pill ${p.colorClass}`}>
-                          <span>{p.label} {p.count}명</span>
+                      {dayBadges.map((badge, idx) => (
+                        <div key={idx} className={`calendar-staff-pill ${badge.colorClass}`}>
+                          <span>{badge.text}</span>
                         </div>
                       ))}
-                    </div>
-                  )}
-
-                  {/* Speech bubble tooltip on the 20th to match sketch */}
-                  {day === 20 && (
-                    <div className="tooltip-bubble animate-pulse">
-                      <span>날짜를 클릭하면 해당 일자의 배정 내역이 나타납니다.</span>
-                      <div className="tooltip-arrow"></div>
                     </div>
                   )}
                 </div>
@@ -393,24 +442,24 @@ export default function DashboardPage() {
         <div className="card details-card">
           <div className="details-card-header">
             <h2 className="details-title">
-              {currentSchedule.dateStr} {currentSchedule.facility} ({currentSchedule.totalWorkers}명)
+              {toYmd(selectedDate).replace(/-/g, ".")} 작업 세부내용
             </h2>
             <button className="btn-detail-refresh" onClick={() => triggerToast("배정 현황 갱신 완료")}>🔄</button>
           </div>
           <div className="divider"></div>
 
           <div className="details-assignments-list">
-            {currentSchedule.assignments.length > 0 ? (
-              currentSchedule.assignments.map((asg, idx) => (
-                <div key={idx} className="assignment-item animate-in" style={{ animationDelay: `${idx * 0.05}s` }}>
+            {selectedDayTasks.length > 0 ? (
+              selectedDayTasks.map((task, idx) => (
+                <div key={`${task.id}-${idx}`} className="assignment-item animate-in" style={{ animationDelay: `${idx * 0.05}s` }}>
                   <div className="assignment-meta">
-                    <span className="assignment-role-tag">{asg.role}</span>
-                    <span className="assignment-task-name">{asg.taskName}</span>
+                    <span className="assignment-role-tag">{task.facility}</span>
+                    <span className="assignment-task-name">{task.product} ({task.taskName})</span>
                   </div>
                   <div className="assignment-workers">
                     <span className="workers-label">작업자 이름:</span>
                     <div className="workers-names-list">
-                      {asg.workers.map((w, wIdx) => (
+                      {task.workers.map((w, wIdx) => (
                         <span key={wIdx} className="worker-name-pill">{w}</span>
                       ))}
                     </div>
@@ -421,7 +470,6 @@ export default function DashboardPage() {
               <div className="no-assignments-placeholder">
                 <span className="placeholder-icon">🏖️</span>
                 <p>해당 일자에는 예정된 공정이 없습니다.</p>
-                <span className="placeholder-sub">설비 정기 점검 또는 공정 휴무일</span>
               </div>
             )}
           </div>

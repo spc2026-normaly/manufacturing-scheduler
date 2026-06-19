@@ -12,6 +12,7 @@ from app.schemas.employee import (
     EmployeeListResponse,
     EmployeeResponse,
     EmployeeUpdate,
+    EmployeePasswordUpdate,
 )
 
 router = APIRouter(prefix="/api/employees", tags=["팀원 관리"])
@@ -122,3 +123,21 @@ def delete_employee(emp_id: str, db: Session = Depends(get_db)):
 
     db.delete(emp)
     db.commit()
+
+
+@router.patch("/{emp_id}/password", response_model=EmployeeResponse, summary="팀원 비밀번호 전용 변경")
+def change_employee_password(
+    emp_id: str,
+    body: EmployeePasswordUpdate,
+    db: Session = Depends(get_db)
+):
+    """팀원의 비밀번호를 전용으로 변경합니다. (bcrypt 해싱 저장)"""
+    emp = db.query(Employee).filter(Employee.emp_id == emp_id).first()
+    if not emp:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="팀원을 찾을 수 없습니다.")
+
+    emp.login_pw = _hash_pw(body.new_password)
+    db.commit()
+    db.refresh(emp)
+    return emp
+

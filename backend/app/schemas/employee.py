@@ -36,3 +36,9 @@ class EmployeeListResponse(BaseModel):
     """팀원 목록 응답 스키마"""
     total: int
     items: list[EmployeeResponse]
+
+
+class EmployeePasswordUpdate(BaseModel):
+    """비밀번호 전용 변경 요청 스키마"""
+    new_password: str = Field(..., description="새로운 비밀번호 (평문, 서버에서 해싱)", min_length=4)
+

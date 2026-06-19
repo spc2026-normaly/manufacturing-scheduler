@@ -6,18 +6,44 @@ import { useToast } from "../AppLayout";
 // ─── Interfaces & Types ─────────────────────────────────────
 type TabType = "month" | "week" | "day";
 
+<<<<<<< HEAD
 interface ProductionTask {
   facility: string;
   taskName: string;
+=======
+interface MonthWeek {
+  label: string;
+  range: string;
+  monday: Date;
+  sunday: Date;
+}
+
+interface CalendarCell {
+  date: Date;
+  isCurrentMonth: boolean;
+}
+
+interface ProductionTask {
+  id: string;
+  facility: string;
+  taskName: string;
+  taskType: string;
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
   equipment: string;
   workers: string[];
   product: string;
   colorClass: string;
+<<<<<<< HEAD
+=======
+  startDate: Date;
+  endDate: Date;
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
   // Monthly Gantt positioning: week index of month (0 = Week 1, 4 = Week 5)
   startWeek: number; 
   endWeek: number;
 }
 
+<<<<<<< HEAD
 // ─── Mock Schedule Dataset ───────────────────────────────────
 // Adjusted tasks to span weekly ranges for Monthly Gantt View
 const MOCK_TASKS: ProductionTask[] = [
@@ -42,15 +68,52 @@ const MOCK_TASKS: ProductionTask[] = [
   { facility: "C공장동", taskName: "사출", equipment: "사출성형기 #01", product: "PRODUCT-L 사출", workers: ["손예진"], colorClass: "bar-pink", startWeek: 1, endWeek: 3 },
   { facility: "C공장동", taskName: "사출", equipment: "사출성형기 #01", product: "PRODUCT-M 사출", workers: ["송혜교"], colorClass: "bar-pink", startWeek: 4, endWeek: 4 }
 ];
+=======
+interface CalendarScheduleDto {
+  id: string;
+  facility: string;
+  task_name: string;
+  task_type: string;
+  equipment: string;
+  workers: string[];
+  product: string;
+  order_num: string;
+  start_date: string;
+  end_date: string;
+}
+
+const TASK_TYPE_COLOR_MAP: Record<string, string> = {
+  공정: "bar-blue",
+  테스트: "bar-green",
+};
+
+const toColorClass = (taskType: string) => TASK_TYPE_COLOR_MAP[taskType] ?? "bar-purple";
+
+const toYmd = (date: Date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 
 export default function SchedulesPage() {
   const showToast = useToast();
   
   // ─── States ─────────────────────────────────────────────────
   const [currentTab, setCurrentTab] = useState<TabType>("week");
+<<<<<<< HEAD
   const [selectedDate, setSelectedDate] = useState<Date>(new Date("2026-06-18")); // default to June 18th, 2026
   const [hoveredTask, setHoveredTask] = useState<ProductionTask | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+=======
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date("2026-07-01"));
+  const [hoveredTask, setHoveredTask] = useState<ProductionTask | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [tasks, setTasks] = useState<ProductionTask[]>([]);
+  const [factoryFilter, setFactoryFilter] = useState<string>("전체");
+  const [orderNumFilter, setOrderNumFilter] = useState<string>("");
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 
   // Date formatting helpers
   const getFormattedDate = (date: Date) => {
@@ -71,7 +134,11 @@ export default function SchedulesPage() {
     const year = selectedDate.getFullYear();
     const month = selectedDate.getMonth();
     
+<<<<<<< HEAD
     const weeks = [];
+=======
+    const weeks: MonthWeek[] = [];
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
     const firstDay = new Date(year, month, 1);
     
     // Find the Monday of the week containing firstDay
@@ -79,8 +146,13 @@ export default function SchedulesPage() {
     let diff = firstDay.getDate() - day + (day === 0 ? -6 : 1);
     let startOfWeek = new Date(firstDay.setDate(diff));
     
+<<<<<<< HEAD
     // Generate 5 weeks
     for (let w = 0; w < 5; w++) {
+=======
+    // Generate 4~6 weeks based on actual calendar boundaries.
+    for (let w = 0; w < 6; w++) {
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
       const weekMon = new Date(startOfWeek);
       weekMon.setDate(startOfWeek.getDate() + w * 7);
       
@@ -93,6 +165,15 @@ export default function SchedulesPage() {
         monday: weekMon,
         sunday: weekSun
       });
+<<<<<<< HEAD
+=======
+
+      const isAfterMonth = weekMon.getMonth() !== month && weekSun.getMonth() !== month;
+      if (isAfterMonth) {
+        weeks.pop();
+        break;
+      }
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
     }
     return weeks;
   }, [selectedDate]);
@@ -115,7 +196,11 @@ export default function SchedulesPage() {
     const totalDays = new Date(year, month + 1, 0).getDate();
     const startOffset = firstDay.getDay();
 
+<<<<<<< HEAD
     const days = [];
+=======
+    const days: CalendarCell[] = [];
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
     // Pad previous month days
     const prevMonthTotalDays = new Date(year, month, 0).getDate();
     const padCount = startOffset === 0 ? 6 : startOffset - 1; // Mon=1
@@ -163,6 +248,7 @@ export default function SchedulesPage() {
     });
   }, [selectedDate, calendarDays]);
 
+<<<<<<< HEAD
   // Daily assignments for selected Date (filtered mock data based on current week index)
   const selectedDayTasks = useMemo(() => {
     const time = selectedDate.getTime();
@@ -175,6 +261,90 @@ export default function SchedulesPage() {
       (task) => weekIdx >= task.startWeek && weekIdx <= task.endWeek
     );
   }, [selectedDate, monthWeeks]);
+=======
+  const weekTasks = useMemo(() => {
+    const time = selectedDate.getTime();
+    const week = monthWeeks.find(
+      (w) => time >= w.monday.getTime() && time <= w.sunday.getTime() + 86400000
+    );
+    if (!week) return [];
+
+    return tasks.filter((task) => task.startDate <= week.sunday && task.endDate >= week.monday);
+  }, [selectedDate, monthWeeks, tasks]);
+
+  // Daily assignments for selected Date
+  const selectedDayTasks = useMemo(() => {
+    const dayStart = new Date(selectedDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(selectedDate);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    return tasks.filter((task) => task.startDate <= dayEnd && task.endDate >= dayStart);
+  }, [selectedDate, tasks]);
+
+  useEffect(() => {
+    const fetchSchedules = async () => {
+      try {
+        const params = new URLSearchParams({
+          view: currentTab,
+          date: toYmd(selectedDate),
+        });
+        if (factoryFilter !== "전체") {
+          params.append("factory", factoryFilter);
+        }
+        if (orderNumFilter.trim()) {
+          params.append("order_num", orderNumFilter.trim());
+        }
+
+        const res = await fetch(`/api/schedules/calendar?${params.toString()}`);
+        if (!res.ok) {
+          throw new Error(`조회 실패: ${res.status}`);
+        }
+
+        const data: CalendarScheduleDto[] = await res.json();
+        const mapped: ProductionTask[] = data.map((row) => {
+          const startDate = new Date(row.start_date);
+          const endDate = new Date(row.end_date);
+
+          const startWeek = monthWeeks.findIndex(
+            (w) => startDate <= w.sunday && endDate >= w.monday
+          );
+
+          let endWeek = -1;
+          for (let i = monthWeeks.length - 1; i >= 0; i--) {
+            const w = monthWeeks[i];
+            if (startDate <= w.sunday && endDate >= w.monday) {
+              endWeek = i;
+              break;
+            }
+          }
+
+          return {
+            id: row.id,
+            facility: row.facility,
+            taskName: row.task_name,
+            taskType: row.task_type,
+            equipment: row.equipment,
+            workers: row.workers,
+            product: row.product,
+            colorClass: toColorClass(row.task_type),
+            startDate,
+            endDate,
+            startWeek: Math.max(startWeek, 0),
+            endWeek: Math.max(endWeek, 0),
+          };
+        });
+
+        setTasks(mapped);
+      } catch {
+        setTasks([]);
+        showToast("캘린더 데이터 조회에 실패했습니다.");
+      }
+    };
+
+    fetchSchedules();
+  }, [currentTab, selectedDate, factoryFilter, orderNumFilter, monthWeeks, showToast]);
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 
   // Date Navigation handlers
   const handlePrevDay = () => {
@@ -214,8 +384,13 @@ export default function SchedulesPage() {
   };
 
   const handleGoToday = () => {
+<<<<<<< HEAD
     setSelectedDate(new Date("2026-06-18")); // default mockup today
     showToast("기준일(2026.06.18)로 이동했습니다.");
+=======
+    setSelectedDate(new Date("2026-07-01"));
+    showToast("기준일(2026.07.01)로 이동했습니다.");
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -798,6 +973,7 @@ export default function SchedulesPage() {
             <div className="gantt-title-row">
               <span className="gantt-title">생산 일정 캘린더 ({selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월)</span>
               <div className="gantt-filters">
+<<<<<<< HEAD
                 <select className="gantt-select" onChange={(e) => showToast(`공장 필터: ${e.target.value}`)}>
                   <option value="전체">공장 선택 - 전체 공장</option>
                   <option value="A동">A공장동</option>
@@ -810,6 +986,29 @@ export default function SchedulesPage() {
                   <option value="대기">대기</option>
                   <option value="완료">완료</option>
                 </select>
+=======
+                <select
+                  className="gantt-select"
+                  value={factoryFilter}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFactoryFilter(e.target.value)}
+                >
+                  <option value="전체">공장 선택 - 전체 공장</option>
+                  <option value="A공장동">A공장동</option>
+                  <option value="B공장동">B공장동</option>
+                  <option value="C공장동">C공장동</option>
+                  <option value="D공장동">D공장동</option>
+                  <option value="E공장동">E공장동</option>
+                  <option value="F공장동">F공장동</option>
+                  <option value="G공장동">G공장동</option>
+                </select>
+                <input
+                  className="gantt-select"
+                  style={{ minWidth: "180px" }}
+                  placeholder="주문번호 필터 (예: PO001)"
+                  value={orderNumFilter}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrderNumFilter(e.target.value)}
+                />
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
                 <button className="sched-btn" onClick={() => showToast("캘린더 데이터를 새로고침했습니다.")}>C 새로고침</button>
               </div>
             </div>
@@ -832,8 +1031,13 @@ export default function SchedulesPage() {
                   </tr>
                 </thead>
                 <tbody>
+<<<<<<< HEAD
                   {["A공장동", "B공장동", "C공장동"].map((facility) => {
                     const facilityTasks = MOCK_TASKS.filter(t => t.facility === facility);
+=======
+                  {Array.from(new Set(tasks.map((t) => t.facility))).map((facility) => {
+                    const facilityTasks = tasks.filter((t) => t.facility === facility);
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
                     return facilityTasks.map((task, idx) => {
                       const isFirstForFacility = idx === 0;
                       return (
@@ -845,8 +1049,12 @@ export default function SchedulesPage() {
                           )}
                           <td className="gantt-col-task">{task.taskName}</td>
                           <td className="gantt-col-eq">{task.equipment}</td>
+<<<<<<< HEAD
                           {/* 5 Weeks cells */}
                           {[0, 1, 2, 3, 4].map((weekIndex) => {
+=======
+                          {monthWeeks.map((_, weekIndex) => {
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
                             const isStart = task.startWeek === weekIndex;
                             const isWithin = weekIndex >= task.startWeek && weekIndex <= task.endWeek;
                             const colSpan = task.endWeek - task.startWeek + 1;
@@ -878,7 +1086,11 @@ export default function SchedulesPage() {
                                       showToast(`${monthWeeks[weekIndex].label} 상세 계획으로 이동했습니다.`);
                                     }}
                                   >
+<<<<<<< HEAD
                                     {task.product} ({task.workers[0]} 외 {task.workers.length - 1}명)
+=======
+                                    {task.product} ({task.workers[0] ?? "미배정"} 외 {Math.max(task.workers.length - 1, 0)}명)
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
                                   </div>
                                 )}
                               </td>
@@ -915,6 +1127,7 @@ export default function SchedulesPage() {
                 {weeklyCalendarDays.map((day, idx) => {
                   const isSelected = day.date.toDateString() === selectedDate.toDateString();
                   const isCurrentMonth = day.isCurrentMonth;
+<<<<<<< HEAD
                   const dayOfWeek = day.date.getDay() === 0 ? 6 : day.date.getDay() - 1; // Mon=0
 
                   // Calculate mockup badges based on weekday index to simulate allocation
@@ -937,6 +1150,31 @@ export default function SchedulesPage() {
                     dayBadges.push({ label: "A공장 2명", class: "cell-badge-green" });
                     dayBadges.push({ label: "D공장 3명", class: "cell-badge-purple" });
                   }
+=======
+                  const cellStart = new Date(day.date);
+                  cellStart.setHours(0, 0, 0, 0);
+                  const cellEnd = new Date(day.date);
+                  cellEnd.setHours(23, 59, 59, 999);
+
+                  const tasksOfDay = weekTasks.filter((task) => task.startDate <= cellEnd && task.endDate >= cellStart);
+                  const workersByFacility = new Map<string, Set<string>>();
+                  tasksOfDay.forEach((task) => {
+                    if (!workersByFacility.has(task.facility)) {
+                      workersByFacility.set(task.facility, new Set<string>());
+                    }
+                    task.workers.forEach((worker) => workersByFacility.get(task.facility)!.add(worker));
+                  });
+
+                  const dayBadges = Array.from(workersByFacility.entries())
+                    .slice(0, 3)
+                    .map(([facilityName, workers], index) => {
+                      const badgeClass = ["cell-badge-green", "cell-badge-blue", "cell-badge-orange"][index] ?? "cell-badge-purple";
+                      return {
+                        label: `${facilityName.replace("공장동", "공장")} ${workers.size}명`,
+                        class: badgeClass,
+                      };
+                    });
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 
                   return (
                     <div
@@ -959,7 +1197,13 @@ export default function SchedulesPage() {
             {/* Detail Panel Right */}
             <div className="month-detail-panel animate-in">
               <div className="month-panel-title">{getFormattedDate(selectedDate)} 배정 현황</div>
+<<<<<<< HEAD
               <div className="month-panel-subtitle">A동 ({selectedDayTasks.length * 3}명 배치)</div>
+=======
+              <div className="month-panel-subtitle">
+                총 {selectedDayTasks.reduce((acc, t) => acc + t.workers.length, 0)}명 배치
+              </div>
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
               
               <div className="month-detail-tasks-list">
                 {selectedDayTasks.length > 0 ? (

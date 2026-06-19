@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 from sqlalchemy import create_engine
+=======
+from sqlalchemy import create_engine, event
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import settings
@@ -10,6 +14,19 @@ engine = create_engine(
     max_overflow=20,
 )
 
+<<<<<<< HEAD
+=======
+
+@event.listens_for(engine, "connect")
+def _set_connection_encoding(dbapi_connection, connection_record):
+    """DB 세션마다 UTF-8 client_encoding을 강제해 인코딩 불일치를 예방한다."""
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("SET client_encoding TO 'UTF8'")
+    finally:
+        cursor.close()
+
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

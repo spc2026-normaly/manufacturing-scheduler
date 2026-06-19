@@ -1,12 +1,29 @@
+<<<<<<< HEAD
 from typing import List
 from fastapi import APIRouter, status
+=======
+from typing import List, Optional
+from datetime import date, datetime, time, timedelta
+
+from fastapi import APIRouter, status, Depends, Query, HTTPException
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 
 from app.schemas.scheduler import (
     EmployeeCreate, EmployeeResponse,
     OrderCreate, OrderResponse,
     TaskCreate, TaskResponse,
     ScheduleCreate, ScheduleResponse,
+<<<<<<< HEAD
     ScheduleAssignmentCreate, ScheduleAssignmentResponse
+=======
+    CalendarScheduleResponse,
+    ScheduleAssignmentCreate, ScheduleAssignmentResponse,
+    DocumentCreate, DocumentResponse
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 )
 
 # hasattr
@@ -14,6 +31,44 @@ from app.schemas.scheduler import (
 router = APIRouter(prefix="/api", tags=["Manufacturing Scheduler (API Stubs)"])
 
 
+<<<<<<< HEAD
+=======
+def _to_factory_label(factory: str) -> str:
+    if factory.endswith("공장동"):
+        return factory
+    if factory.endswith("동"):
+        return f"{factory[:-1]}공장동"
+    return f"{factory}공장동"
+
+
+def _compute_range(view: str, base_date: date) -> tuple[datetime, datetime]:
+    if view == "day":
+        start_dt = datetime.combine(base_date, time.min)
+        end_dt = datetime.combine(base_date, time.max)
+        return start_dt, end_dt
+
+    if view == "week":
+        monday = base_date - timedelta(days=base_date.weekday())
+        sunday = monday + timedelta(days=6)
+        start_dt = datetime.combine(monday, time.min)
+        end_dt = datetime.combine(sunday, time.max)
+        return start_dt, end_dt
+
+    if view == "month":
+        first_day = base_date.replace(day=1)
+        if first_day.month == 12:
+            next_first = first_day.replace(year=first_day.year + 1, month=1, day=1)
+        else:
+            next_first = first_day.replace(month=first_day.month + 1, day=1)
+        last_day = next_first - timedelta(days=1)
+        start_dt = datetime.combine(first_day, time.min)
+        end_dt = datetime.combine(last_day, time.max)
+        return start_dt, end_dt
+
+    raise HTTPException(status_code=400, detail="view는 month/week/day 중 하나여야 합니다.")
+
+
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 # ─────────────── Employee Endpoints ───────────────────────────────────────
 @router.get("/employees", response_model=List[EmployeeResponse], summary="직원 목록 조회")
 def get_employees():
@@ -70,6 +125,86 @@ def create_task(task: TaskCreate):
 
 
 # ─────────────── Schedule Endpoints ───────────────────────────────────────
+<<<<<<< HEAD
+=======
+@router.get(
+    "/schedules/calendar",
+    response_model=List[CalendarScheduleResponse],
+    summary="캘린더 일정 조회"
+)
+def get_calendar_schedules(
+    view: str = Query("month", description="month | week | day"),
+    date_param: Optional[date] = Query(None, alias="date", description="기준일 (YYYY-MM-DD)"),
+    factory: Optional[str] = Query(None, description="공장동 필터 (예: A공장동)"),
+    order_num: Optional[str] = Query(None, description="주문번호 필터 (예: PO001)"),
+    db: Session = Depends(get_db),
+):
+    base_date = date_param or date(2026, 7, 1)
+    start_dt, end_dt = _compute_range(view=view, base_date=base_date)
+
+    sql = """
+    SELECT
+        s.id,
+        s.factory,
+        t.task_name,
+        t.task_type,
+        o.product_name,
+        o.order_num,
+        s.start_date,
+        s.end_date,
+        COALESCE(string_agg(DISTINCT e.eq_name, ', ' ORDER BY e.eq_name), '') AS equipment,
+        array_remove(array_agg(DISTINCT emp.emp_name ORDER BY emp.emp_name), NULL) AS workers
+    FROM schedules s
+    JOIN task t ON t.task_id = s.task_id
+    JOIN orders o ON o.order_id = s.order_id
+    JOIN schedule_assignments sa
+      ON sa.id = s.id
+     AND sa.task_id = s.task_id
+     AND sa.order_id = s.order_id
+    JOIN employees emp ON emp.emp_id = sa.user_id
+    LEFT JOIN required_equipments re ON re.task_id = s.task_id
+    LEFT JOIN equipments e ON e.eq_id = re.eq_id
+    WHERE s.start_date <= :end_dt
+      AND s.end_date >= :start_dt
+      AND (:factory_raw IS NULL OR s.factory = :factory_raw)
+      AND (:order_num IS NULL OR o.order_num = :order_num)
+    GROUP BY s.id, s.factory, t.task_name, t.task_type, o.product_name, o.order_num, s.start_date, s.end_date
+    ORDER BY s.start_date ASC, s.id ASC
+    """
+
+    # 프론트 필터값(A공장동)과 DB값(A동)을 맞춘다.
+    factory_raw = None
+    if factory:
+        factory_raw = factory.replace("공장동", "동")
+
+    rows = db.execute(
+        text(sql),
+        {
+            "start_dt": start_dt,
+            "end_dt": end_dt,
+            "factory_raw": factory_raw,
+            "order_num": order_num,
+        },
+    ).mappings().all()
+
+    return [
+        {
+            "id": row["id"],
+            "facility": _to_factory_label(row["factory"]),
+            "task_name": row["task_name"],
+            "task_type": row["task_type"],
+            "equipment": row["equipment"],
+            "workers": row["workers"] or [],
+            "product": row["product_name"],
+            "order_num": row["order_num"],
+            "start_date": row["start_date"],
+            "end_date": row["end_date"],
+        }
+        for row in rows
+    ]
+
+
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 @router.get("/schedules", response_model=List[ScheduleResponse], summary="생산 일정 목록 조회")
 def get_schedules():
     """배정된 생산 일정 목록을 조회합니다. (API 스텁)"""
@@ -103,3 +238,29 @@ def create_schedule_assignment(assignment: ScheduleAssignmentCreate):
         "task_id": assignment.task_id,
         "order_id": assignment.order_id
     }
+<<<<<<< HEAD
+=======
+
+# ─────────────── Document Endpoints ───────────────────────────────────────
+@router.get("/documents", response_model=List[DocumentResponse], summary="업로드 문서 목록 조회")
+def get_documents():
+    """업로드된 문서 및 임베딩 처리 상태를 조회합니다. (API 스텁)"""
+    return []
+
+@router.post("/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED, summary="문서 정보 등록")
+def create_document(document: DocumentCreate):
+    """신규로 업로드한 문서 메타 정보를 등록합니다. (API 스텁)"""
+    return {
+        "file_id": document.file_id,
+        "uploader": document.uploader,
+        "file_name": document.file_name,
+        "file_size": document.file_size,
+        "file_extension": document.file_extension,
+        "file_path": document.file_path,
+        "is_template": document.is_template,
+        "file_created_at": document.file_created_at,
+        "file_updated_at": document.file_updated_at,
+        "embedding_date": document.embedding_date,
+        "embedding_status": document.embedding_status
+    }
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c

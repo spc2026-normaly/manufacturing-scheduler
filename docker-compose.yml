@@ -11,14 +11,14 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./db:/docker-entrypoint-initdb.d:ro  # 초기화 SQL 스크립트 마운트
     ports:
-      - "5432:5432"          # 로컬에서 직접 접속 가능 (개발용)
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
-
   # ─── FastAPI Backend ──────────────────────────────────────
   backend:
     build:

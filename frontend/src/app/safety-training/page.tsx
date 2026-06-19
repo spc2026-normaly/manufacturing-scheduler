@@ -37,6 +37,11 @@ export default function SafetyTrainingPage() {
   const [workersData, setWorkersData] = useState<WorkerSafetyData[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+<<<<<<< HEAD
+=======
+  const [currentUser, setCurrentUser] = useState<{ emp_id: string; emp_name: string; emp_role: string; login_id: string } | null>(null);
+  const [isForbidden, setIsForbidden] = useState(false);
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 
   // Helper for Authorization Headers
   const getAuthHeaders = () => {
@@ -70,6 +75,7 @@ export default function SafetyTrainingPage() {
     try {
       const headers = getAuthHeaders();
 
+<<<<<<< HEAD
       // 1. Fetch entire employees
       const empRes = await fetch("/api/employees?limit=500", { headers });
       if (!empRes.ok) throw new Error("Failed to fetch employees");
@@ -90,6 +96,60 @@ export default function SafetyTrainingPage() {
         const trainingsList: TrainingStatus[] = Array(5).fill(null).map(() => ({ state: "none" }));
 
         let normalIndex = 1;
+=======
+      // Fetch current user details
+      const meRes = await fetch("/api/auth/me", { headers });
+      if (meRes.status === 403) {
+        setIsForbidden(true);
+        setLoading(false);
+        return;
+      }
+      if (!meRes.ok) throw new Error("Failed to fetch current user");
+      const meData = await meRes.json();
+      setCurrentUser(meData);
+
+      // Fetch employees based on role
+      let employees: ApiEmployee[] = [];
+      let trainingUrl = "/api/safety-trainings";
+
+      if (meData.emp_role === "leader") {
+        const empRes = await fetch("/api/employees?limit=500", { headers });
+        if (empRes.status === 403) {
+          setIsForbidden(true);
+          setLoading(false);
+          return;
+        }
+        if (!empRes.ok) throw new Error("Failed to fetch employees");
+        const empResult = await empRes.json();
+        employees = empResult.items;
+      } else {
+        employees = [{
+          emp_id: meData.emp_id,
+          login_id: meData.login_id,
+          emp_name: meData.emp_name,
+          emp_role: meData.emp_role,
+          emp_date: ""
+        }];
+        trainingUrl += `?emp_id=${meData.emp_id}`;
+      }
+
+      // Fetch safety training records
+      const trainingRes = await fetch(trainingUrl, { headers });
+      if (trainingRes.status === 403) {
+        setIsForbidden(true);
+        setLoading(false);
+        return;
+      }
+      if (!trainingRes.ok) throw new Error("Failed to fetch safety trainings");
+      const trainings: ApiSafetyTraining[] = await trainingRes.json();
+
+      // Process and map trainings for each employee
+      const mappedWorkers: WorkerSafetyData[] = employees.map((emp) => {
+        const empTrainings = trainings.filter((t) => t.emp_id === emp.emp_id);
+        const trainingsList: TrainingStatus[] = Array(5).fill(null).map(() => ({ state: "none" }));
+        let normalIndex = 1;
+
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
         empTrainings.forEach((record) => {
           const name = record.training_name;
           const statusCalc = calculateTrainingStatus(record.expired_date);
@@ -99,11 +159,17 @@ export default function SafetyTrainingPage() {
             dday: statusCalc.dday
           };
 
+<<<<<<< HEAD
           // If it's the primary "정기 안전 교육" or "안전교육1", put it in column 1 (index 0)
           if (name === "정기 안전 교육" || name === "안전교육1") {
             trainingsList[0] = trainingObj;
           } else {
             // Put other trainings in column 2~5 sequentially
+=======
+          if (name === "정기 안전 교육" || name === "안전교육1") {
+            trainingsList[0] = trainingObj;
+          } else {
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
             if (normalIndex < 5) {
               trainingsList[normalIndex] = trainingObj;
               normalIndex++;
@@ -226,6 +292,23 @@ export default function SafetyTrainingPage() {
     );
   }
 
+<<<<<<< HEAD
+=======
+  if (isForbidden) {
+    return (
+      <div style={{ padding: "40px", display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+        <div style={{ padding: "40px", textAlign: "center", borderColor: "#fca5a5", border: "1px solid #fecaca", borderRadius: "12px", backgroundColor: "#fff", maxWidth: "500px", width: "100%" }}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>🚫</div>
+          <h2 style={{ color: "#dc2626", fontSize: "20px", fontWeight: "bold" }}>접근 권한이 없습니다</h2>
+          <p style={{ color: "#4b5563", marginTop: "8px", fontSize: "14px" }}>
+            이 데이터를 조회할 수 있는 권한이 없습니다. (API 403 Forbidden)
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
   return (
     <div className="st-container animate-in">
       <style>{`
@@ -472,6 +555,7 @@ export default function SafetyTrainingPage() {
       `}</style>
 
       {/* ── Header Meta Bar ── */}
+<<<<<<< HEAD
       <div className="st-header-meta">
         <span className="st-today">오늘 날짜 : 2026.06.15</span>
 
@@ -528,6 +612,79 @@ export default function SafetyTrainingPage() {
       {/* ── Content Card & Table ── */}
       <div className="st-card">
         <div className="st-table-title">직원별 교육 현황 (만료일 표시)</div>
+=======
+      {currentUser?.emp_role !== "member" && (
+        <div className="st-header-meta">
+          <span className="st-today">오늘 날짜 : 2026.06.15</span>
+
+          {/* Multi-segment progress bar for complete/expired ratio */}
+          <div className="st-stats-summary">
+            <span className="st-stats-label">만료/완료 통계</span>
+            <div className="st-progress-multi" title={`완료: ${completedRate}%, 임박: ${warningRate}%, 만료: ${expiredRate}%`}>
+              <div className="st-progress-sec completed" style={{ width: `${completedRate}%` }}></div>
+              <div className="st-progress-sec warning" style={{ width: `${warningRate}%` }}></div>
+              <div className="st-progress-sec expired" style={{ width: `${expiredRate}%` }}></div>
+            </div>
+            <span className="st-stats-text">
+              완료 {stats.completed}건 / 만료 {stats.expired}건
+            </span>
+          </div>
+
+          {/* Name Search Box */}
+          <div className="st-search-box">
+            <input
+              type="text"
+              className="st-search-input"
+              placeholder="이름 검색"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <span className="st-search-icon">🔍</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Legend Bar ── */}
+      {currentUser?.emp_role !== "member" && (
+        <div className="st-legend">
+          <div className="st-legend-item">
+            <span className="st-dot green"></span>
+            <span>30일 이상</span>
+          </div>
+          <div className="st-legend-item">
+            <span className="st-dot yellow"></span>
+            <span>7~30일</span>
+          </div>
+          <div className="st-legend-item">
+            <span className="st-dot red"></span>
+            <span>7일 이하</span>
+          </div>
+          <div className="st-legend-item">
+            <span className="st-dot gray"></span>
+            <span>만료</span>
+          </div>
+          <div className="st-legend-item">
+            <span className="st-dot none"></span>
+            <span>미완료</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Content Card & Table ── */}
+      <div className="st-card">
+        <div className="st-table-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>
+            {currentUser?.emp_role === "member"
+              ? `${currentUser.emp_name}님의 안전 교육 현황`
+              : "직원별 교육 현황 (만료일 표시)"}
+          </span>
+          {currentUser?.emp_role === "member" && (
+            <span style={{ fontSize: "13px", fontWeight: "normal", color: "var(--text-muted, #64748b)" }}>
+              오늘 날짜 : 2026.06.15
+            </span>
+          )}
+        </div>
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
         <div className="st-table-wrapper">
           <table className="st-table">
             <thead>

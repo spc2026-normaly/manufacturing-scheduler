@@ -24,6 +24,7 @@ export default function EquipmentsPage() {
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [upcomingEquipments, setUpcomingEquipments] = useState<UpcomingEquipment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isForbidden, setIsForbidden] = useState(false);
 
   // Helper for Authorization Headers
   const getAuthHeaders = () => {
@@ -41,6 +42,12 @@ export default function EquipmentsPage() {
 
       // 1. Fetch entire equipments
       const eqRes = await fetch("/api/equipments", { headers });
+
+      if (eqRes.status === 403) {
+        setIsForbidden(true);
+        setLoading(false);
+        return;
+      }
       let eqData: Equipment[] = [];
       if (eqRes.ok) {
         eqData = await eqRes.json();

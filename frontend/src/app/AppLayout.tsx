@@ -122,6 +122,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+<<<<<<< HEAD
+=======
+  // Redirect members from root path to schedules
+  useEffect(() => {
+    if (!authLoading && user) {
+      if (user.emp_role === "member" && pathname === "/") {
+        router.replace("/schedules");
+      }
+    }
+  }, [user, pathname, authLoading, router]);
+
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
   // Handle Login submission
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -462,7 +474,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <span className="sidebar-section-label">메뉴</span>
         <div className="sidebar-nav-list">
+<<<<<<< HEAD
           {NAV_ITEMS.map((item) => (
+=======
+          {NAV_ITEMS.filter((item) => {
+            if (user?.emp_role === "member") {
+              return item.path === "schedules" || item.path === "safety-training";
+            }
+            return true;
+          }).map((item) => (
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
             <button
               key={item.label}
               onClick={() => handleMenuClick(item.label, item.path)}
@@ -518,7 +539,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* ── Dynamic Main Screen ── */}
         <main className="page-content">
+<<<<<<< HEAD
           {activeMenu === "메인" || activeMenu === "팀원 관리" || activeMenu === "안전 교육 현황" || activeMenu === "장비 관리" || activeMenu === "내 문서" || activeMenu === "양산 일정" ? (
+=======
+          {user && user.emp_role === "member" && activeMenu !== "양산 일정" && activeMenu !== "안전 교육 현황" ? (
+            <div className="placeholder-content card animate-in" style={{ borderColor: "#fca5a5" }}>
+              <div className="placeholder-icon" style={{ fontSize: "48px", marginBottom: "16px" }}>🚫</div>
+              <h2 style={{ color: "#dc2626" }}>접근 권한이 없습니다</h2>
+              <p style={{ color: "#4b5563", marginTop: "8px", marginBottom: "20px" }}>
+                이 페이지를 조회할 수 있는 권한이 없습니다. 양산 일정 또는 안전 교육 현황 메뉴를 이용해 주세요.
+              </p>
+              <button className="btn-primary" style={{ backgroundColor: "#dc2626" }} onClick={() => router.push("/schedules")}>
+                양산 일정으로 이동
+              </button>
+            </div>
+          ) : activeMenu === "메인" || activeMenu === "팀원 관리" || activeMenu === "안전 교육 현황" || activeMenu === "장비 관리" || activeMenu === "내 문서" || activeMenu === "양산 일정" ? (
+>>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
             children
           ) : (
             <div className="placeholder-content card animate-in">

@@ -10,10 +10,6 @@ from app.routers.health import router as health_router
 from app.routers.scheduler_api import router as scheduler_router
 from app.routers.auth import router as auth_router
 from app.routers.employees import router as employees_router
-<<<<<<< HEAD
-from app.routers.documents import router as documents_router
-=======
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 
 from app.routers.safety_training import router as safety_training_router
 from app.routers.equipment import router as equipment_router
@@ -50,16 +46,8 @@ app.include_router(employees_router)
 app.include_router(scheduler_router)
 app.include_router(safety_training_router)
 app.include_router(equipment_router)
-<<<<<<< HEAD
-app.include_router(documents_router)
-=======
 
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 
 @app.get("/", include_in_schema=False)
 def root():
     return {"message": "Manufacturing Scheduler API is running 🚀"}
-<<<<<<< HEAD
-
-=======
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c

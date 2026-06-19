@@ -130,9 +130,6 @@ export default function DashboardPage() {
   const [selectedDay, setSelectedDay] = useState<number>(17); // Set default to June 17th as highlighted in mockups
   const [toastText, setToastText] = useState<string | null>(null);
 
-<<<<<<< HEAD
-  // Fetch API Health
-=======
   // Real-time API States
   const [employeesCount, setEmployeesCount] = useState(128); // default mock values
   const [completionRate, setCompletionRate] = useState(86.7);
@@ -148,7 +145,6 @@ export default function DashboardPage() {
   };
 
   // Fetch API Health & Dashboard data
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
   useEffect(() => {
     const checkHealth = async () => {
       try {
@@ -160,9 +156,6 @@ export default function DashboardPage() {
         console.error("Backend health check failed:", e);
       }
     };
-<<<<<<< HEAD
-    checkHealth();
-=======
 
     const fetchDashboardData = async () => {
       try {
@@ -213,7 +206,6 @@ export default function DashboardPage() {
 
     checkHealth();
     fetchDashboardData();
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
     const id = setInterval(checkHealth, 15000);
     return () => clearInterval(id);
   }, []);
@@ -259,11 +251,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-<<<<<<< HEAD
-      {/* ── Row 1: Stats Grid (Mockup Style Data) ── */}
-=======
       {/* ── Row 1: Stats Grid (Real-time API Data) ── */}
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
       <div className="stats-row">
         {/* Card 1: 전체 직원 수 */}
         <div className="stat-card">
@@ -271,19 +259,11 @@ export default function DashboardPage() {
             <span className="stat-card-title">전체 직원 수</span>
           </div>
           <div className="stat-card-body">
-<<<<<<< HEAD
-            <span className="stat-number">128</span>
-            <span className="stat-unit">명</span>
-          </div>
-          <div className="stat-card-footer">
-            <span className="trend-text positive">지난 달 대비 ▲ 5명</span>
-=======
             <span className="stat-number">{employeesCount}</span>
             <span className="stat-unit">명</span>
           </div>
           <div className="stat-card-footer">
             <span className="trend-text positive">실시간 연동 완료</span>
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
           </div>
         </div>
 
@@ -293,19 +273,11 @@ export default function DashboardPage() {
             <span className="stat-card-title">교육 완료율</span>
           </div>
           <div className="stat-card-body">
-<<<<<<< HEAD
-            <span className="stat-number">86.7</span>
-            <span className="stat-unit">%</span>
-          </div>
-          <div className="stat-card-footer">
-            <span className="trend-text positive">지난 달 대비 ▲ 4.2%</span>
-=======
             <span className="stat-number">{completionRate}</span>
             <span className="stat-unit">%</span>
           </div>
           <div className="stat-card-footer">
             <span className="trend-text positive">실시간 교육 이수율</span>
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
           </div>
         </div>
 
@@ -315,11 +287,7 @@ export default function DashboardPage() {
             <span className="stat-card-title">점검 예정 설비</span>
           </div>
           <div className="stat-card-body">
-<<<<<<< HEAD
-            <span className="stat-number">12</span>
-=======
             <span className="stat-number">{upcomingCount}</span>
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
             <span className="stat-unit">건</span>
           </div>
           <div className="stat-card-footer">
@@ -327,11 +295,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-<<<<<<< HEAD
-        {/* Card 4: 업로드 문서 */}
-=======
         {/* Card 4: 업로드 문서 (문서 관련 항목이므로 목업 유지) */}
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
         <div className="stat-card">
           <div className="stat-card-header">
             <span className="stat-card-title">업로드 문서</span>
@@ -346,10 +310,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-<<<<<<< HEAD
-=======
 
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
       {/* ── Row 2: Calendar & Details ── */}
       <div className="calendar-detail-row">
         {/* Calendar Card (Left) */}
@@ -514,27 +475,6 @@ export default function DashboardPage() {
           </div>
           <div className="widget-divider"></div>
           <div className="equipments-list">
-<<<<<<< HEAD
-            {[
-              { name: "압축기 #2 (B공장)", dday: "D-2", urgent: true },
-              { name: "보일러 #1 (A공장)", dday: "D-3", urgent: true },
-              { name: "냉각탑 #3 (B공장)", dday: "D-5", urgent: true },
-              { name: "펌프 #1 (C공장)", dday: "D-6", urgent: true }
-            ].map((eq, idx) => (
-              <div key={idx} className="eq-row-item">
-                <div className="eq-info">
-                  <span className="eq-icon">⚙️</span>
-                  <div className="eq-info-texts">
-                    <span className="eq-name-text">{eq.name}</span>
-                    <span className="eq-date-sub">정기 안전 진단 점검 예정</span>
-                  </div>
-                </div>
-                <span className={`eq-status-badge ${eq.urgent ? "urgent" : "normal"}`}>
-                  {eq.dday}
-                </span>
-              </div>
-            ))}
-=======
             {upcomingList.length > 0 ? (
               upcomingList.map((eq, idx) => (
                 <div key={idx} className="eq-row-item">
@@ -555,7 +495,6 @@ export default function DashboardPage() {
                 일주일 이내 점검 예정 장비가 없습니다.
               </div>
             )}
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
           </div>
         </div>
       </div>

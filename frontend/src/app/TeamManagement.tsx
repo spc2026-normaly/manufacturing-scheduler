@@ -23,10 +23,7 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [visiblePwIds, setVisiblePwIds] = useState<Set<string>>(new Set());
-<<<<<<< HEAD
-=======
   const [isForbidden, setIsForbidden] = useState(false);
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 
   // Create form state
   const [formName, setFormName] = useState("");
@@ -49,13 +46,10 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
       const res = await fetch("/api/employees?limit=500", {
         headers: getAuthHeaders()
       });
-<<<<<<< HEAD
-=======
       if (res.status === 403) {
         setIsForbidden(true);
         return;
       }
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
       if (res.ok) {
         const data = await res.json();
         setEmployees(data.items);
@@ -168,8 +162,6 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
   const endPage = Math.min(totalPages, startPage + 4);
   for (let i = startPage; i <= endPage; i++) pageNumbers.push(i);
 
-<<<<<<< HEAD
-=======
   if (isForbidden) {
     return (
       <div style={{ padding: "40px", display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh", width: "100%" }}>
@@ -184,7 +176,7 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
     );
   }
 
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
+
   return (
     <div className="tm-page">
 

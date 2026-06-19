@@ -75,8 +75,6 @@ class ScheduleResponse(ScheduleBase):
         from_attributes = True
 
 
-<<<<<<< HEAD
-=======
 class CalendarScheduleResponse(BaseModel):
     id: str = Field(..., description="일정 ID")
     facility: str = Field(..., description="공장동 (예: A공장동)")
@@ -90,7 +88,6 @@ class CalendarScheduleResponse(BaseModel):
     end_date: datetime = Field(..., description="종료 일시")
 
 
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 # ─── Schedule Assignment Schemas ─────────────────────────────
 class ScheduleAssignmentBase(BaseModel):
     pass

@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-from typing import List
-from fastapi import APIRouter, status
-=======
 from typing import List, Optional
 from datetime import date, datetime, time, timedelta
 
@@ -10,20 +6,15 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 
 from app.schemas.scheduler import (
     EmployeeCreate, EmployeeResponse,
     OrderCreate, OrderResponse,
     TaskCreate, TaskResponse,
     ScheduleCreate, ScheduleResponse,
-<<<<<<< HEAD
-    ScheduleAssignmentCreate, ScheduleAssignmentResponse
-=======
     CalendarScheduleResponse,
     ScheduleAssignmentCreate, ScheduleAssignmentResponse,
     DocumentCreate, DocumentResponse
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 )
 
 # hasattr
@@ -31,8 +22,6 @@ from app.schemas.scheduler import (
 router = APIRouter(prefix="/api", tags=["Manufacturing Scheduler (API Stubs)"])
 
 
-<<<<<<< HEAD
-=======
 def _to_factory_label(factory: str) -> str:
     if factory.endswith("공장동"):
         return factory
@@ -68,7 +57,6 @@ def _compute_range(view: str, base_date: date) -> tuple[datetime, datetime]:
     raise HTTPException(status_code=400, detail="view는 month/week/day 중 하나여야 합니다.")
 
 
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 # ─────────────── Employee Endpoints ───────────────────────────────────────
 @router.get("/employees", response_model=List[EmployeeResponse], summary="직원 목록 조회")
 def get_employees():
@@ -125,8 +113,6 @@ def create_task(task: TaskCreate):
 
 
 # ─────────────── Schedule Endpoints ───────────────────────────────────────
-<<<<<<< HEAD
-=======
 @router.get(
     "/schedules/calendar",
     response_model=List[CalendarScheduleResponse],
@@ -204,7 +190,6 @@ def get_calendar_schedules(
     ]
 
 
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c
 @router.get("/schedules", response_model=List[ScheduleResponse], summary="생산 일정 목록 조회")
 def get_schedules():
     """배정된 생산 일정 목록을 조회합니다. (API 스텁)"""
@@ -238,8 +223,7 @@ def create_schedule_assignment(assignment: ScheduleAssignmentCreate):
         "task_id": assignment.task_id,
         "order_id": assignment.order_id
     }
-<<<<<<< HEAD
-=======
+
 
 # ─────────────── Document Endpoints ───────────────────────────────────────
 @router.get("/documents", response_model=List[DocumentResponse], summary="업로드 문서 목록 조회")
@@ -263,4 +247,3 @@ def create_document(document: DocumentCreate):
         "embedding_date": document.embedding_date,
         "embedding_status": document.embedding_status
     }
->>>>>>> 0e576a401d9772abf362a970b015f2bc8545e15c

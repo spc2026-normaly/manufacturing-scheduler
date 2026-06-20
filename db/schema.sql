@@ -1,7 +1,11 @@
 -- PostgreSQL DDL Schema for Manufacturing Scheduler
 -- Enforces NOT NULL on all columns and maps to appropriate PostgreSQL data types.
 
+-- Enable pgvector extension
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- 1. Clean up existing tables (with CASCADE to handle dependencies)
+DROP TABLE IF EXISTS document_chunks CASCADE;
 DROP TABLE IF EXISTS schedule_assignments CASCADE;
 DROP TABLE IF EXISTS untitled CASCADE;
 DROP TABLE IF EXISTS documents CASCADE;
@@ -124,7 +128,24 @@ CREATE TABLE documents (
     CONSTRAINT FK_employees_TO_documents FOREIGN KEY (uploader) REFERENCES employees (emp_id) ON DELETE CASCADE
 );
 
+-- document_chunks table (Vector DB for RAG chatbot)
+CREATE TABLE document_chunks (
+    chunk_id VARCHAR(255) NOT NULL,
+    file_id VARCHAR(255) NOT NULL,
+    uploader VARCHAR(255) NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    embedding VECTOR(1536) NOT NULL, -- Configured for OpenAI 1536-dim embeddings
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_DOCUMENT_CHUNKS PRIMARY KEY (chunk_id),
+    CONSTRAINT FK_documents_TO_document_chunks FOREIGN KEY (file_id, uploader) REFERENCES documents (file_id, uploader) ON DELETE CASCADE
+);
+
+-- HNSW cosine distance index for vector similarity search
+CREATE INDEX IF NOT EXISTS document_chunks_embedding_cosine_idx 
+ON document_chunks USING hnsw (embedding vector_cosine_ops);
+
 -- 3. Comments for documentation and code clarity
-COMMENT ON COLUMN equipments.eq_status IS '?λ퉬 ?곹깭 (?뺤긽, ?먭? ?꾩슂 ??';
-COMMENT ON COLUMN equipments.check_cycle IS '?먭? 二쇨린 (???⑥쐞)';
-COMMENT ON COLUMN task.task_time IS '?묒뾽 ?뚯슂 ?쒓컙 (遺??⑥쐞)';
+COMMENT ON COLUMN equipments.eq_status IS '장비 상태 (정상, 점검 필요 등)';
+COMMENT ON COLUMN equipments.check_cycle IS '점검 주기 (일단위)';
+COMMENT ON COLUMN task.task_time IS '작업 소요 시간 (분단위)';

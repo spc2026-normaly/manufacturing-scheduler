@@ -77,6 +77,7 @@ def _match_key(row: dict[str, str], candidates: list[str]) -> str | None:
 
 
 def _truncate_tables(db: Session, table_names: list[str]) -> None:
+    """테이블 전체 데이터 삭제. CASCADE는 외래키 제약을 무시하고 관련 데이터도 함께 삭제."""
     quoted = ", ".join(table_names)
     db.execute(text(f"TRUNCATE TABLE {quoted} CASCADE"))
 
@@ -91,7 +92,9 @@ def _sync_equipments(db: Session, rows: list[dict[str, str]]) -> dict:
         "eq_id": _match_key(first, ["장비uuid", "eq_id", "장비id"]),
         "eq_name": _match_key(first, ["장비명", "eq_name"]),
         "eq_count": _match_key(first, ["장비전체수량", "장비수량", "eq_count"]),
-        "available_eq_count": _match_key(first, ["가용장비수량", "사용가능수량", "available_eq_count"]),
+        "available_eq_count": _match_key(
+            first, ["가용장비수량", "사용가능수량", "available_eq_count"]
+        ),
         "check_cycle": _match_key(first, ["점검주기", "check_cycle"]),
         "eq_status": _match_key(first, ["상태", "eq_status"]),
         "check_date": _match_key(first, ["다음점검일", "check_date"]),
@@ -114,26 +117,48 @@ def _sync_equipments(db: Session, rows: list[dict[str, str]]) -> dict:
             {
                 "eq_id": eq_id,
                 "eq_name": eq_name,
-                "eq_count": _parse_int(row.get(key_map["eq_count"])) if key_map["eq_count"] else 0,
-                "available_eq_count": _parse_int(row.get(key_map["available_eq_count"])) if key_map["available_eq_count"] else 0,
-                "check_cycle": _parse_int(row.get(key_map["check_cycle"])) if key_map["check_cycle"] else 0,
-                "eq_status": row.get(key_map["eq_status"], "정상").strip() if key_map["eq_status"] else "정상",
-                "check_date": _parse_date(row.get(key_map["check_date"])) if key_map["check_date"] else date.today(),
-                "recent_check_date": _parse_date(row.get(key_map["recent_check_date"])) if key_map["recent_check_date"] else date.today(),
+                "eq_count": (
+                    _parse_int(row.get(key_map["eq_count"]))
+                    if key_map["eq_count"]
+                    else 0
+                ),
+                "available_eq_count": (
+                    _parse_int(row.get(key_map["available_eq_count"]))
+                    if key_map["available_eq_count"]
+                    else 0
+                ),
+                "check_cycle": (
+                    _parse_int(row.get(key_map["check_cycle"]))
+                    if key_map["check_cycle"]
+                    else 0
+                ),
+                "eq_status": (
+                    row.get(key_map["eq_status"], "정상").strip()
+                    if key_map["eq_status"]
+                    else "정상"
+                ),
+                "check_date": (
+                    _parse_date(row.get(key_map["check_date"]))
+                    if key_map["check_date"]
+                    else date.today()
+                ),
+                "recent_check_date": (
+                    _parse_date(row.get(key_map["recent_check_date"]))
+                    if key_map["recent_check_date"]
+                    else date.today()
+                ),
             }
         )
 
     _truncate_tables(db, ["equipments"])
     if payloads:
         db.execute(
-            text(
-                """
+            text("""
                 INSERT INTO equipments
                 (eq_id, eq_name, eq_count, available_eq_count, check_cycle, eq_status, check_date, recent_check_date)
                 VALUES
                 (:eq_id, :eq_name, :eq_count, :available_eq_count, :check_cycle, :eq_status, :check_date, :recent_check_date)
-                """
-            ),
+                """),
             payloads,
         )
 
@@ -141,14 +166,23 @@ def _sync_equipments(db: Session, rows: list[dict[str, str]]) -> dict:
 
 
 def _ensure_task_factory_column(db: Session) -> None:
-    db.execute(text("ALTER TABLE task ADD COLUMN IF NOT EXISTS task_factory VARCHAR(255) NULL"))
+    db.execute(
+        text("ALTER TABLE task ADD COLUMN IF NOT EXISTS task_factory VARCHAR(255) NULL")
+    )
 
 
-def _sync_tasks_and_required_equipments(db: Session, rows: list[dict[str, str]]) -> dict:
+def _sync_tasks_and_required_equipments(
+    db: Session, rows: list[dict[str, str]]
+) -> dict:
     if not rows:
         _ensure_task_factory_column(db)
         _truncate_tables(db, ["required_equipments", "task"])
-        return {"table": "task,required_equipments", "task_rows": 0, "required_rows": 0, "unknown_equipments": []}
+        return {
+            "table": "task,required_equipments",
+            "task_rows": 0,
+            "required_rows": 0,
+            "unknown_equipments": [],
+        }
 
     first = rows[0]
     key_map = {
@@ -158,13 +192,17 @@ def _sync_tasks_and_required_equipments(db: Session, rows: list[dict[str, str]])
         "task_level": _match_key(first, ["작업단계", "task_level"]),
         "task_time": _match_key(first, ["작업시간", "작업 시간", "task_time"]),
         "task_factory": _match_key(first, ["사용공장동", "task_factory", "공장동"]),
-        "required_equipment": _match_key(first, ["필요장비", "required_equipment", "필요 장비"]),
+        "required_equipment": _match_key(
+            first, ["필요장비", "required_equipment", "필요 장비"]
+        ),
     }
 
     required = ["task_id", "task_name"]
     missing = [field for field in required if not key_map[field]]
     if missing:
-        raise ValueError(f"테스트및공정목록.csv 필수 헤더 매칭 실패: {', '.join(missing)}")
+        raise ValueError(
+            f"테스트및공정목록.csv 필수 헤더 매칭 실패: {', '.join(missing)}"
+        )
 
     _ensure_task_factory_column(db)
 
@@ -180,11 +218,27 @@ def _sync_tasks_and_required_equipments(db: Session, rows: list[dict[str, str]])
         task_payloads.append(
             {
                 "task_id": task_id,
-                "task_level": row.get(key_map["task_level"], "1").strip() if key_map["task_level"] else "1",
+                "task_level": (
+                    row.get(key_map["task_level"], "1").strip()
+                    if key_map["task_level"]
+                    else "1"
+                ),
                 "task_name": task_name,
-                "task_type": row.get(key_map["task_type"], "공정").strip() if key_map["task_type"] else "공정",
-                "task_time": _parse_int(row.get(key_map["task_time"]), 0) if key_map["task_time"] else 0,
-                "task_factory": row.get(key_map["task_factory"], "").strip() if key_map["task_factory"] else "",
+                "task_type": (
+                    row.get(key_map["task_type"], "공정").strip()
+                    if key_map["task_type"]
+                    else "공정"
+                ),
+                "task_time": (
+                    _parse_int(row.get(key_map["task_time"]), 0)
+                    if key_map["task_time"]
+                    else 0
+                ),
+                "task_factory": (
+                    row.get(key_map["task_factory"], "").strip()
+                    if key_map["task_factory"]
+                    else ""
+                ),
             }
         )
 
@@ -196,19 +250,21 @@ def _sync_tasks_and_required_equipments(db: Session, rows: list[dict[str, str]])
     _truncate_tables(db, ["required_equipments", "task"])
     if task_payloads:
         db.execute(
-            text(
-                """
+            text("""
                 INSERT INTO task
                 (task_id, task_level, task_name, task_type, task_time, task_factory)
                 VALUES
                 (:task_id, :task_level, :task_name, :task_type, :task_time, :task_factory)
-                """
-            ),
+                """),
             task_payloads,
         )
 
-    equipment_rows = db.execute(text("SELECT eq_id, eq_name FROM equipments")).mappings().all()
-    eq_by_name = {str(row["eq_name"]).strip(): str(row["eq_id"]).strip() for row in equipment_rows}
+    equipment_rows = (
+        db.execute(text("SELECT eq_id, eq_name FROM equipments")).mappings().all()
+    )
+    eq_by_name = {
+        str(row["eq_name"]).strip(): str(row["eq_id"]).strip() for row in equipment_rows
+    }
     valid_eq_ids = {str(row["eq_id"]).strip() for row in equipment_rows}
 
     required_payloads = []
@@ -230,12 +286,10 @@ def _sync_tasks_and_required_equipments(db: Session, rows: list[dict[str, str]])
 
     if required_payloads:
         db.execute(
-            text(
-                """
+            text("""
                 INSERT INTO required_equipments (task_id, eq_id)
                 VALUES (:task_id, :eq_id)
-                """
-            ),
+                """),
             required_payloads,
         )
 
@@ -263,7 +317,15 @@ def _sync_safety_training(db: Session, rows: list[dict[str, str]]) -> dict:
         normalized = _normalize(key)
         if "이수일" in key:
             base = re.sub(r"\s*이수일\s*$", "", key).strip()
-            expire_key = next((k for k in header_keys if _normalize(k) == _normalize(base + " 만료일") or _normalize(k) == _normalize(base + "만료일")), None)
+            expire_key = next(
+                (
+                    k
+                    for k in header_keys
+                    if _normalize(k) == _normalize(base + " 만료일")
+                    or _normalize(k) == _normalize(base + "만료일")
+                ),
+                None,
+            )
             if expire_key:
                 training_pairs.append((base, key, expire_key))
 
@@ -272,13 +334,21 @@ def _sync_safety_training(db: Session, rows: list[dict[str, str]]) -> dict:
             if re.search(r"교육\d+\s*이수일", key):
                 base = re.sub(r"\s*이수일\s*$", "", key).strip()
                 expire_guess = base + " 만료일"
-                expire_key = next((k for k in header_keys if _normalize(k) == _normalize(expire_guess)), None)
+                expire_key = next(
+                    (
+                        k
+                        for k in header_keys
+                        if _normalize(k) == _normalize(expire_guess)
+                    ),
+                    None,
+                )
                 if expire_key:
                     training_pairs.append((base, key, expire_key))
 
     payloads = []
     today = date.today()
     for row in rows:
+        # 사원ID를 소문자로 정규화 (CSV에 EMP001이 있어도 DB의 emp001과 매칭하기 위함)
         emp_id = row.get(emp_key, "").strip().lower()
         if not emp_id:
             continue
@@ -288,6 +358,7 @@ def _sync_safety_training(db: Session, rows: list[dict[str, str]]) -> dict:
             if not training_date or not expired_date:
                 continue
             training_id = f"trn_{uuid.uuid5(uuid.NAMESPACE_DNS, f'{emp_id}:{training_name}').hex[:8]}"
+            # 만료일 기준으로 훈련 상태 결정
             status = "유효" if expired_date >= today else "만료"
             payloads.append(
                 {
@@ -303,14 +374,12 @@ def _sync_safety_training(db: Session, rows: list[dict[str, str]]) -> dict:
     _truncate_tables(db, ["safety_training"])
     if payloads:
         db.execute(
-            text(
-                """
+            text("""
                 INSERT INTO safety_training
                 (training_id, emp_id, training_name, training_date, expired_date, training_status)
                 VALUES
                 (:training_id, :emp_id, :training_name, :training_date, :expired_date, :training_status)
-                """
-            ),
+                """),
             payloads,
         )
     return {"table": "safety_training", "rows": len(payloads)}

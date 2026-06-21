@@ -9,7 +9,6 @@ from docx import Document as DocxDocument
 
 from app.config import settings
 
-
 SUPPORTED_EMBED_EXTENSIONS = {"pdf", "txt", "csv", "md", "docx"}
 
 
@@ -77,7 +76,9 @@ def create_query_embedding(query: str) -> list[float]:
     return response.data[0].embedding
 
 
-def chunk_and_embed(file_bytes: bytes, file_extension: str) -> tuple[list[str], list[list[float]]]:
+def chunk_and_embed(
+    file_bytes: bytes, file_extension: str
+) -> tuple[list[str], list[list[float]]]:
     text = extract_text_from_bytes(file_bytes=file_bytes, file_extension=file_extension)
     chunks = split_text_to_chunks(text)
     embeddings = create_embeddings(chunks)

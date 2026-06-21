@@ -54,7 +54,9 @@ def _file_extension(filename: str) -> str:
 
 def _validate_file(upload: UploadFile, data: bytes) -> str:
     if not upload.filename:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="파일명이 없습니다.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="파일명이 없습니다."
+        )
 
     max_size = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if len(data) > max_size:
@@ -146,10 +148,9 @@ def _upsert_document_metadata(
         db.add(doc)
         return doc, True
 
-    changed = (
-        existing.file_size != file_size
-        or _normalize_datetime(existing.file_updated_at) != _normalize_datetime(file_updated_at)
-    )
+    changed = existing.file_size != file_size or _normalize_datetime(
+        existing.file_updated_at
+    ) != _normalize_datetime(file_updated_at)
 
     existing.file_name = file_name
     existing.file_size = file_size
@@ -166,7 +167,9 @@ def _run_embedding_pipeline(db: Session, doc: Document, file_bytes: bytes) -> st
 
     try:
         doc.embedding_status = "processing"
-        chunks, embeddings = chunk_and_embed(file_bytes=file_bytes, file_extension=doc.file_extension)
+        chunks, embeddings = chunk_and_embed(
+            file_bytes=file_bytes, file_extension=doc.file_extension
+        )
         stored = _replace_document_chunks(
             db=db,
             doc=doc,
@@ -195,7 +198,11 @@ async def process_uploaded_document(
 
     prefix = CATEGORY_PREFIX_MAP[category]
     r2_key = build_r2_key(upload.filename, prefix)
-    upload_bytes_to_r2(data=data, r2_key=r2_key, content_type=upload.content_type or guess_content_type(upload.filename))
+    upload_bytes_to_r2(
+        data=data,
+        r2_key=r2_key,
+        content_type=upload.content_type or guess_content_type(upload.filename),
+    )
 
     document, changed = _upsert_document_metadata(
         db,
@@ -211,7 +218,9 @@ async def process_uploaded_document(
     if category == "rag" and changed:
         message = _run_embedding_pipeline(db=db, doc=document, file_bytes=data)
     elif category == "schedule_input" and changed and extension == "csv":
-        sync_result = sync_schedule_input_csv(db=db, file_name=upload.filename, file_bytes=data)
+        sync_result = sync_schedule_input_csv(
+            db=db, file_name=upload.filename, file_bytes=data
+        )
         message = f"CSV 동기화 완료: {sync_result}"
 
     db.commit()
@@ -228,8 +237,13 @@ async def process_uploaded_document(
 
 
 def sync_r2_documents(db: Session, *, uploader: str) -> dict:
+    """R2 클라우드페어의 모든 폴더에서 파일을 가져와 DB와 동기화.
+    - 추가/업데이트된 파일은 벡터 임베딩 처리
+    - R2에서 삭제된 파일은 DB에서도 자동 제거
+    """
     prefixes = [
         settings.R2_RAG_PREFIX,
+        settings.R2_SAFETY_MANAGE_PREFIX,
         settings.R2_SCHEDULE_INPUT_PREFIX,
         settings.R2_SCHEDULE_OUTPUT_PREFIX,
     ]
@@ -237,24 +251,39 @@ def sync_r2_documents(db: Session, *, uploader: str) -> dict:
     created = 0
     updated = 0
     skipped = 0
+    deleted = 0
+
+    # Step 1: R2에 있는 모든 파일 경로를 set에 수집 (나중에 삭제된 파일 찾기용)
+    r2_file_paths = set()
 
     for prefix in prefixes:
         objects = list_r2_objects(prefix)
+        print(f"🔍 [SYNC] prefix='{prefix}' found {len(objects)} files")
+
+        # 폴더별로 처리 카테고리 결정 (RAG 임베딩 vs CSV 데이터 vs 기타)
         category: DocumentCategory = "rag"
         if prefix == settings.R2_SCHEDULE_INPUT_PREFIX:
             category = "schedule_input"
+        elif prefix == settings.R2_SAFETY_MANAGE_PREFIX:
+            category = "rag"  # safety_manage도 RAG 임베딩 처리
         elif prefix == settings.R2_SCHEDULE_OUTPUT_PREFIX:
             category = "schedule_output"
 
         for obj in objects:
             file_name = obj["file_name"]
             extension = _file_extension(file_name)
+            print(f"  📄 file='{file_name}' ext='{extension}' category='{category}'")
             if extension not in ALLOWED_EXTENSIONS:
+                print(f"    ⏭️  SKIPPED (invalid extension)")
                 skipped += 1
                 continue
 
+            # R2 파일 경로 수집 (Step 2에서 DB에만 있는 고아 문서 찾기용)
+            r2_file_paths.add(obj["key"])
+
             existed = _find_document_by_path(db, obj["key"]) is not None
 
+            # DB 문서 메타데이터 생성 또는 업데이트
             doc, changed = _upsert_document_metadata(
                 db,
                 uploader=uploader,
@@ -267,25 +296,57 @@ def sync_r2_documents(db: Session, *, uploader: str) -> dict:
 
             if not existed and changed:
                 created += 1
+                print(f"    ✅ CREATED")
             elif changed:
                 updated += 1
+                print(f"    🔄 UPDATED")
             else:
                 skipped += 1
+                print(f"    ⏭️  SKIPPED (no change)")
 
+            # RAG 카테고리이고 파일이 변경되었으면 임베딩 처리
             if category == "rag" and changed:
+                print(f"    🚀 Running embedding pipeline...")
                 file_bytes = download_file_from_r2(obj["key"])
                 _run_embedding_pipeline(db=db, doc=doc, file_bytes=file_bytes)
+            # CSV 입력 데이터이고 변경되었으면 CSV 동기화 처리
             elif category == "schedule_input" and changed and extension == "csv":
                 file_bytes = download_file_from_r2(obj["key"])
-                sync_schedule_input_csv(db=db, file_name=file_name, file_bytes=file_bytes)
+                sync_schedule_input_csv(
+                    db=db, file_name=file_name, file_bytes=file_bytes
+                )
 
+    # Step 2: R2에서 삭제된 파일 찾기 (DB에는 있지만 R2에는 없는 고아 문서)
+    orphaned_docs = (
+        db.query(Document).filter(~Document.file_path.in_(r2_file_paths)).all()
+    )
+
+    # 고아 문서 제거 (벡터 청크와 메타데이터 모두 삭제)
+    for orphaned_doc in orphaned_docs:
+        print(f"🗑️  DELETED: {orphaned_doc.file_name}")
+        # 먼저 벡터 청크 삭제
+        db.query(DocumentChunk).filter(
+            DocumentChunk.file_id == orphaned_doc.file_id
+        ).delete(synchronize_session=False)
+        # 다음 문서 메타데이터 삭제
+        db.delete(orphaned_doc)
+        deleted += 1
+
+    # 모든 변경사항 DB에 커밋
     db.commit()
 
+    # 동기화 결과 요약 출력
+    print(
+        f"\n📊 [SYNC SUMMARY] created={created}, updated={updated}, skipped={skipped}, deleted={deleted}"
+    )
+
+    # 프론트엔드에 반환
     return {
         "message": "sync completed",
         "created": created,
         "updated": updated,
         "skipped": skipped,
+        "deleted": deleted,
     }
 
 
@@ -329,7 +390,9 @@ def search_rag_chunks(db: Session, query: str, top_k: int | None = None) -> list
 def get_document_bytes(db: Session, file_id: str) -> tuple[Document, bytes]:
     doc = db.get(Document, file_id)
     if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다."
+        )
 
     file_bytes = download_file_from_r2(doc.file_path)
     return doc, file_bytes

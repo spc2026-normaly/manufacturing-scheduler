@@ -45,7 +45,9 @@ def build_r2_key(filename: str, prefix: str) -> str:
     return f"{normalize_prefix(prefix)}{clean_name}"
 
 
-def upload_fileobj_to_r2(file_obj: BinaryIO, r2_key: str, content_type: str | None = None) -> None:
+def upload_fileobj_to_r2(
+    file_obj: BinaryIO, r2_key: str, content_type: str | None = None
+) -> None:
     client = get_r2_client()
     extra_args: dict[str, str] = {}
     if content_type:
@@ -58,7 +60,9 @@ def upload_fileobj_to_r2(file_obj: BinaryIO, r2_key: str, content_type: str | No
     )
 
 
-def upload_bytes_to_r2(data: bytes, r2_key: str, content_type: str | None = None) -> None:
+def upload_bytes_to_r2(
+    data: bytes, r2_key: str, content_type: str | None = None
+) -> None:
     client = get_r2_client()
     extra_args: dict[str, str] = {}
     if content_type:

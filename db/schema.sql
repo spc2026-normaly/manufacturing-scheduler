@@ -49,6 +49,7 @@ CREATE TABLE task (
     task_level VARCHAR(50) NOT NULL,
     task_name VARCHAR(255) NOT NULL,
     task_type VARCHAR(100) NOT NULL,
+    task_factory VARCHAR(255) NULL,
     task_time INTEGER NOT NULL, -- duration in minutes
     CONSTRAINT PK_TASK PRIMARY KEY (task_id)
 );

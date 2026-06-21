@@ -34,6 +34,9 @@ export default function DocumentsPage() {
   // ─── Schedule Generation Simulation State ──────────────────
   const [scheduleStatus, setScheduleStatus] = useState<"idle" | "running" | "completed" | "failed">("idle");
   const [progress, setProgress] = useState(0);
+  
+  // ─── R2 Sync Message State ──────────────────────────────────
+  const [r2SyncMessage, setR2SyncMessage] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -115,6 +118,70 @@ export default function DocumentsPage() {
     setProgress(0);
   };
 
+  // R2 Sync handler
+  const [r2Syncing, setR2Syncing] = useState(false);
+
+  const handleSyncR2 = async () => {
+    const token = localStorage.getItem("token");
+    console.log("🔍 R2 Sync 시작 - Token:", token ? "존재" : "없음");
+    
+    if (!token) {
+      console.warn("⚠️ 토큰 없음");
+      showToast("로그인이 필요합니다.");
+      return;
+    }
+
+    setR2Syncing(true);
+    console.log("🚀 API 호출 시작...");
+
+    try {
+      console.log("📡 요청 헤더:", {
+        "Authorization": `Bearer ${token.substring(0, 20)}...`,
+        "Content-Type": "application/json"
+      });
+
+      const response = await fetch("/api/documents/sync-r2", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      console.log("📨 응답 상태:", response.status, response.statusText);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("❌ API 에러:", errText);
+        throw new Error(`HTTP ${response.status}: ${errText}`);
+      }
+
+      const data = await response.json();
+      console.log("✅ API 성공 응답:", data);
+      
+      // 수정사항이 없는 경우
+      const { created = 0, updated = 0, skipped = 0 } = data;
+      if (created === 0 && updated === 0) {
+        console.log("ℹ️ 변경사항 없음");
+        setR2SyncMessage({ type: 'warning', message: '변경내역이 없습니다' });
+        showToast("변경된 내용이 없습니다.");
+      } else {
+        console.log("💬 메시지 표시 시작...");
+        setR2SyncMessage({ type: 'success', message: 'Cloud fare R2 저장소의 csv 파일이 DB에 반영되었습니다!' });
+        console.log("✨ 메시지 설정 완료");
+        showToast("✅ 동기화 완료!");
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "알 수 없는 오류";
+      console.error("🔴 동기화 에러:", message);
+      setR2SyncMessage({ type: 'error', message: '동기화에 실패했습니다' });
+      showToast(`❌ 동기화 실패: ${message}`);
+    } finally {
+      setR2Syncing(false);
+      console.log("🏁 동기화 완료");
+    }
+  };
+
   // Progress Bar simulation effect
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -134,6 +201,16 @@ export default function DocumentsPage() {
     }
     return () => clearInterval(interval);
   }, [scheduleStatus]);
+
+  // R2 Sync Message auto-hide effect (7 seconds)
+  useEffect(() => {
+    if (r2SyncMessage) {
+      const timer = setTimeout(() => {
+        setR2SyncMessage(null);
+      }, 7000);
+      return () => clearTimeout(timer);
+    }
+  }, [r2SyncMessage]);
 
   return (
     <div className="doc-container animate-in">
@@ -191,6 +268,49 @@ export default function DocumentsPage() {
         }
         .badge-info { background-color: #dbeafe; color: #1e40af; }
         .badge-success { background-color: #dcfce7; color: #15803d; }
+
+        /* R2 Sync Message */
+        .doc-r2-sync-message {
+          position: absolute;
+          right: 0;
+          top: 0;
+          font-weight: 600;
+          font-size: 14px;
+          animation: slideIn 0.3s ease-out, slideOut 0.3s ease-out 6.7s forwards;
+          white-space: nowrap;
+        }
+        .doc-r2-sync-message.success {
+          color: #10b981;
+        }
+        .doc-r2-sync-message.error {
+          color: #ef4444;
+        }
+        .doc-r2-sync-message.warning {
+          color: #3b82f6;
+        }
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateX(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        @keyframes slideOut {
+          from {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          to {
+            opacity: 0;
+            transform: translateX(20px);
+          }
+        }
+        .doc-status-banner {
+          position: relative;
+        }
 
         /* ── Top Grid Section ── */
         .doc-top-grid {
@@ -467,6 +587,9 @@ export default function DocumentsPage() {
             {scheduleStatus === "running" && "PROCESSING"}
             {scheduleStatus === "completed" && "SUCCESS"}
           </span>
+          {r2SyncMessage && (
+            <span className={`doc-r2-sync-message ${r2SyncMessage.type}`}>{r2SyncMessage.message}</span>
+          )}
         </div>
       </div>
 
@@ -514,6 +637,14 @@ export default function DocumentsPage() {
               disabled={scheduleStatus === "running" || documents.length === 0}
             >
               {scheduleStatus === "running" ? "일정 생성 중..." : "일정 수립하기"}
+            </button>
+            <button
+              className="doc-schedule-btn"
+              onClick={handleSyncR2}
+              disabled={r2Syncing}
+              style={{ marginLeft: "12px", backgroundColor: "#10b981" }}
+            >
+              {r2Syncing ? "동기화 중..." : "☁️ 클라우드페어 DB동기화"}
             </button>
           </div>
         </div>

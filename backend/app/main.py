@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.config import settings
 from app.database import engine
@@ -19,6 +20,9 @@ from app.routers.chatbot import router as chatbot_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """앱 시작 시 DB 테이블 생성 (개발 편의용 — 프로덕션에서는 Alembic 사용)"""
+    with engine.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.execute(text("ALTER TABLE IF EXISTS task ADD COLUMN IF NOT EXISTS task_factory VARCHAR(255) NULL"))
     Base.metadata.create_all(bind=engine)
     yield
 

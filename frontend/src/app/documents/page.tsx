@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useState, useRef, useEffect } from "react";
 import { useToast } from "../AppLayout";
 
@@ -18,15 +17,15 @@ export default function DocumentsPage() {
   const showToast = useToast();
   const [documents, setDocuments] = useState<DocFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
-  const [scheduleStatus, setScheduleStatus] = useState<"idle" | "running" | "completed">("idle");
+  const [scheduleStatus, setScheduleStatus] = useState<"idle" | "running" | "completed" | "failed">("idle");
   const [progress, setProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ─── 목록 조회
+  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
   const fetchDocuments = async () => {
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    const res = await fetch(API_BASE, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(API_BASE, { headers: { Authorization: `Bearer ${getToken()}` } });
       if (res.ok) setDocuments(await res.json());
     } catch {
       showToast("문서 목록을 불러오지 못했습니다.");
@@ -35,19 +34,21 @@ export default function DocumentsPage() {
 
   useEffect(() => { fetchDocuments(); }, []);
 
-  // ─── 업로드
   const addUploadedFile = async (file: File) => {
     const supportedTypes = ["csv", "xlsx", "pdf", "txt", "docx"];
     const ext = file.name.split(".").pop()?.toLowerCase() || "";
     if (!supportedTypes.includes(ext)) {
-      showToast(`지원하지 않는 파일 형식입니다. (지원 형식: ${supportedTypes.join(", ")})`);
+      showToast("지원하지 않는 파일 형식입니다.");
       return;
     }
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      const res = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData, headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API_BASE}/upload`, {
+        method: "POST",
+        body: formData,
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
       if (res.ok) {
         showToast(`'${file.name}' 파일이 업로드되었습니다.`);
         fetchDocuments();
@@ -59,12 +60,13 @@ export default function DocumentsPage() {
     }
   };
 
-  // ─── 삭제
   const handleDelete = async (doc: DocFile) => {
     if (!confirm(`'${doc.file_name}' 파일을 삭제하시겠습니까?`)) return;
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      const res = await fetch(`${API_BASE}/${doc.file_id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API_BASE}/${doc.file_id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
       if (res.ok) {
         showToast(`'${doc.file_name}' 파일이 삭제되었습니다.`);
         fetchDocuments();
@@ -74,38 +76,63 @@ export default function DocumentsPage() {
     }
   };
 
-  // ─── 다운로드
   const handleDownload = (doc: DocFile) => {
     window.open(`${API_BASE}/${doc.file_id}/download`, "_blank");
-    showToast(`'${doc.file_name}' 파일 다운로드를 시작합니다.`);
+    showToast(`'${doc.file_name}' 다운로드를 시작합니다.`);
   };
 
-  // ─── 드래그
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(e.type === "dragenter" || e.type === "dragover");
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files?.[0]) addUploadedFile(e.dataTransfer.files[0]);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) addUploadedFile(e.target.files[0]);
-  };
-
-  // ─── 일정 수립
-  const handleStartSchedule = () => {
-    if (documents.length === 0) {
-      showToast("먼저 파일을 업로드해주세요.");
-      return;
+    const files = Array.from(e.dataTransfer.files);
+    for (const file of files) {
+      await addUploadedFile(file);
     }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    for (const file of files) {
+      await addUploadedFile(file);
+    }
+  };
+
+  const handleStartSchedule = async () => {
     setScheduleStatus("running");
     setProgress(0);
+
+    const file_ids = ["c2d7df63-7fc9-4537-b009-e3a251660f83"];
+
+    try {
+      const res = await fetch("/api/schedule/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ file_ids }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        setScheduleStatus("completed");
+        showToast(`일정 ${result.schedules.length}개가 생성되었습니다!`);
+        console.log("생성된 일정:", result);
+      } else {
+        setScheduleStatus("failed");
+        showToast("일정 생성에 실패했습니다.");
+      }
+    } catch {
+      setScheduleStatus("failed");
+      showToast("서버 연결에 실패했습니다.");
+    }
   };
 
   useEffect(() => {
@@ -113,16 +140,12 @@ export default function DocumentsPage() {
     if (scheduleStatus === "running") {
       interval = setInterval(() => {
         setProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            setScheduleStatus("completed");
-            showToast("스마트 AI 일정 수립이 완료되었습니다!");
-            return 100;
-          }
+          if (prev >= 90) { clearInterval(interval); return 90; }
           return prev + 5;
         });
-      }, 100);
+      }, 200);
     }
+    if (scheduleStatus === "completed") setProgress(100);
     return () => clearInterval(interval);
   }, [scheduleStatus]);
 
@@ -137,10 +160,11 @@ export default function DocumentsPage() {
         .doc-status-text { font-size: 14px; font-weight: 600; color: var(--text-main, #1e293b); }
         .doc-status-progress-container { display: flex; align-items: center; gap: 12px; }
         .doc-status-progress-bar { width: 150px; height: 8px; background-color: #e2e8f0; border-radius: 4px; overflow: hidden; }
-        .doc-status-progress-fill { height: 100%; background-color: #3b82f6; transition: width 0.1s linear; }
+        .doc-status-progress-fill { height: 100%; background-color: #3b82f6; transition: width 0.2s linear; }
         .doc-status-badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; }
         .badge-info { background-color: #dbeafe; color: #1e40af; }
         .badge-success { background-color: #dcfce7; color: #15803d; }
+        .badge-error { background-color: #fee2e2; color: #b91c1c; }
         .doc-top-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; }
         .doc-upload-card { background-color: var(--card-bg, #ffffff); border: 1px solid var(--border, #e2e8f0); border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 16px; }
         .doc-card-header { display: flex; justify-content: space-between; align-items: center; }
@@ -173,12 +197,12 @@ export default function DocumentsPage() {
         .doc-empty-cell { text-align: center; padding: 40px !important; color: var(--text-muted, #64748b); }
       `}</style>
 
-      {/* 상태 배너 */}
       <div className="doc-status-banner">
         <span className="doc-status-text">
           {scheduleStatus === "idle" && "대기 중: 일정 수립 문서를 업로드하고 시작해 주세요."}
           {scheduleStatus === "running" && `일정 생성 중...(${String(progress).padStart(2, "0")}%)`}
           {scheduleStatus === "completed" && "스마트 일정 생성이 완료되었습니다!"}
+          {scheduleStatus === "failed" && "일정 생성에 실패했습니다. 다시 시도해주세요."}
         </span>
         <div className="doc-status-progress-container">
           {scheduleStatus === "running" && (
@@ -186,15 +210,15 @@ export default function DocumentsPage() {
               <div className="doc-status-progress-fill" style={{ width: `${progress}%` }} />
             </div>
           )}
-          <span className={`doc-status-badge ${scheduleStatus === "completed" ? "badge-success" : "badge-info"}`}>
+          <span className={`doc-status-badge ${scheduleStatus === "completed" ? "badge-success" : scheduleStatus === "failed" ? "badge-error" : "badge-info"}`}>
             {scheduleStatus === "idle" && "READY"}
             {scheduleStatus === "running" && "PROCESSING"}
             {scheduleStatus === "completed" && "SUCCESS"}
+            {scheduleStatus === "failed" && "FAILED"}
           </span>
         </div>
       </div>
 
-      {/* 업로드 + 최근 문서 */}
       <div className="doc-top-grid">
         <div className="doc-upload-card">
           <div className="doc-card-header">
@@ -205,14 +229,14 @@ export default function DocumentsPage() {
             onDragEnter={handleDrag} onDragOver={handleDrag} onDragLeave={handleDrag} onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
           >
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: "none" }} accept=".csv,.xlsx,.pdf,.txt,.docx" />
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: "none" }} accept=".csv,.xlsx,.pdf,.txt,.docx" multiple />
             <span className="doc-upload-icon">📂</span>
-            <span className="doc-upload-text">파일을 드래그하여 놓거나 클릭하여 선택</span>
+            <span className="doc-upload-text">파일을 드래그하여 놓거나 클릭하여 선택 (여러 파일 가능)</span>
             <button type="button" className="doc-upload-btn" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>업로드</button>
             <span className="doc-upload-hint">지원 파일 형식 (csv, xlsx, pdf, txt)</span>
           </div>
           <div className="doc-schedule-btn-wrapper">
-            <button className="doc-schedule-btn" onClick={handleStartSchedule} disabled={scheduleStatus === "running" || documents.length === 0}>
+            <button className="doc-schedule-btn" onClick={handleStartSchedule} disabled={scheduleStatus === "running"}>
               {scheduleStatus === "running" ? "일정 생성 중..." : "일정 수립하기"}
             </button>
           </div>
@@ -238,7 +262,6 @@ export default function DocumentsPage() {
         </div>
       </div>
 
-      {/* 문서 목록 테이블 */}
       <div className="doc-table-card">
         <div style={{ padding: "20px 24px 12px", fontWeight: 700 }}>내 문서 목록 ({documents.length})</div>
         <div className="doc-table-wrapper">

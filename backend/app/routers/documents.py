@@ -1,5 +1,6 @@
 import os
 import uuid
+import logging
 from urllib.parse import unquote
 from typing import List
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status
@@ -12,6 +13,7 @@ from app.models.employee import Employee
 from app.routers.auth import get_current_employee
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
+logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = "/app/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -44,15 +46,21 @@ async def upload_document(
     return {"file_id": doc.file_id, "file_name": doc.file_name, "file_size": doc.file_size}
 
 @router.get("", summary="문서 목록 조회")
-def get_documents(db: Session = Depends(get_db), current_emp: Employee = Depends(get_current_employee)):
-    return db.execute(select(Document).where(Document.uploader == current_emp.emp_id)).scalars().all()
-
-@router.get("/{file_id}", summary="문서 단건 조회")
-def get_document(file_id: str, db: Session = Depends(get_db), current_emp: Employee = Depends(get_current_employee)):
-    doc = db.query(Document).filter(Document.file_id == file_id, Document.uploader == current_emp.emp_id).first()
-    if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
-    return doc
+def get_documents(db: Session = Depends(get_db)):
+    docs = db.execute(select(Document)).scalars().all()
+    print(f"docs count: {len(docs)}", flush=True)
+    return [
+        {
+            "file_id": d.file_id,
+            "file_name": d.file_name,
+            "file_size": d.file_size,
+            "file_extension": d.file_extension,
+            "uploader": d.uploader,
+            "file_created_at": str(d.file_created_at),
+            "embedding_status": d.embedding_status,
+        }
+        for d in docs
+    ]
 
 @router.get("/{file_id}/download", summary="문서 다운로드")
 def download_document(file_id: str, db: Session = Depends(get_db), current_emp: Employee = Depends(get_current_employee)):

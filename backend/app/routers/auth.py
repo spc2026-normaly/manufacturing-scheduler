@@ -84,6 +84,28 @@ def _decode_token_and_get_employee(token: str, db: Session) -> Employee:
     return emp
 
 
+# ─── 공통 Dependency ─────────────────────────────────────────────────────────
+
+def get_current_employee(
+    token: str = Depends(_get_token_from_header),
+    db: Session = Depends(get_db),
+) -> Employee:
+    """Bearer 토큰을 검증하고 현재 로그인한 Employee 객체를 반환합니다."""
+    return _decode_token_and_get_employee(token, db)
+
+
+def require_leader(
+    current_emp: Employee = Depends(get_current_employee),
+) -> Employee:
+    """현재 사용자가 leader 역할인지 확인합니다. leader가 아니면 403 Forbidden을 반환합니다."""
+    if current_emp.emp_role != "leader":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="접근 권한이 없습니다. 리더(leader) 역할만 이 기능을 사용할 수 있습니다.",
+        )
+    return current_emp
+
+
 # ─── 엔드포인트 ──────────────────────────────────────────────────────────────
 
 @router.post("/login", response_model=TokenResponse, summary="로그인 (JWT 발급)")

@@ -7,11 +7,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.employee import Employee
+from app.routers.auth import require_leader
 from app.schemas.employee import (
     EmployeeCreate,
     EmployeeListResponse,
     EmployeeResponse,
     EmployeeUpdate,
+    EmployeePasswordUpdate,
 )
 
 router = APIRouter(prefix="/api/employees", tags=["팀원 관리"])
@@ -37,6 +39,7 @@ def list_employees(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
+    _: object = Depends(require_leader),
 ):
     """등록된 팀원 목록을 조회합니다. 이름 검색 및 역할 필터를 지원합니다."""
     query = db.query(Employee)
@@ -53,7 +56,7 @@ def list_employees(
 
 
 @router.post("", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED, summary="팀원 등록")
-def create_employee(body: EmployeeCreate, db: Session = Depends(get_db)):
+def create_employee(body: EmployeeCreate, db: Session = Depends(get_db), _: object = Depends(require_leader)):
     """새로운 팀원을 등록합니다. 비밀번호는 bcrypt로 해싱하여 저장됩니다."""
     # login_id 중복 체크
     existing = db.query(Employee).filter(Employee.login_id == body.login_id).first()
@@ -78,7 +81,7 @@ def create_employee(body: EmployeeCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{emp_id}", response_model=EmployeeResponse, summary="팀원 상세 조회")
-def get_employee(emp_id: str, db: Session = Depends(get_db)):
+def get_employee(emp_id: str, db: Session = Depends(get_db), _: object = Depends(require_leader)):
     """특정 팀원의 상세 정보를 조회합니다."""
     emp = db.query(Employee).filter(Employee.emp_id == emp_id).first()
     if not emp:
@@ -87,7 +90,7 @@ def get_employee(emp_id: str, db: Session = Depends(get_db)):
 
 
 @router.patch("/{emp_id}", response_model=EmployeeResponse, summary="팀원 정보 수정")
-def update_employee(emp_id: str, body: EmployeeUpdate, db: Session = Depends(get_db)):
+def update_employee(emp_id: str, body: EmployeeUpdate, db: Session = Depends(get_db), _: object = Depends(require_leader)):
     """팀원 정보를 부분 수정합니다. (이름, 역할, 입사일, 비밀번호)"""
     emp = db.query(Employee).filter(Employee.emp_id == emp_id).first()
     if not emp:
@@ -114,7 +117,7 @@ def update_employee(emp_id: str, body: EmployeeUpdate, db: Session = Depends(get
 
 
 @router.delete("/{emp_id}", status_code=status.HTTP_204_NO_CONTENT, summary="팀원 삭제 (하드)")
-def delete_employee(emp_id: str, db: Session = Depends(get_db)):
+def delete_employee(emp_id: str, db: Session = Depends(get_db), _: object = Depends(require_leader)):
     """팀원을 데이터베이스에서 삭제합니다. (하드 삭제)"""
     emp = db.query(Employee).filter(Employee.emp_id == emp_id).first()
     if not emp:
@@ -122,3 +125,22 @@ def delete_employee(emp_id: str, db: Session = Depends(get_db)):
 
     db.delete(emp)
     db.commit()
+
+
+@router.patch("/{emp_id}/password", response_model=EmployeeResponse, summary="팀원 비밀번호 전용 변경")
+def change_employee_password(
+    emp_id: str,
+    body: EmployeePasswordUpdate,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_leader),
+):
+    """팀원의 비밀번호를 전용으로 변경합니다. (bcrypt 해싱 저장)"""
+    emp = db.query(Employee).filter(Employee.emp_id == emp_id).first()
+    if not emp:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="팀원을 찾을 수 없습니다.")
+
+    emp.login_pw = _hash_pw(body.new_password)
+    db.commit()
+    db.refresh(emp)
+    return emp
+

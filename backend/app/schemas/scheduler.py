@@ -75,6 +75,19 @@ class ScheduleResponse(ScheduleBase):
         from_attributes = True
 
 
+class CalendarScheduleResponse(BaseModel):
+    id: str = Field(..., description="일정 ID")
+    facility: str = Field(..., description="공장동 (예: A공장동)")
+    task_name: str = Field(..., description="작업명")
+    task_type: str = Field(..., description="작업 구분")
+    equipment: str = Field(..., description="필요 장비 문자열")
+    workers: List[str] = Field(..., description="배정 작업자 이름 목록")
+    product: str = Field(..., description="제품명")
+    order_num: str = Field(..., description="주문번호")
+    start_date: datetime = Field(..., description="시작 일시")
+    end_date: datetime = Field(..., description="종료 일시")
+
+
 # ─── Schedule Assignment Schemas ─────────────────────────────
 class ScheduleAssignmentBase(BaseModel):
     pass

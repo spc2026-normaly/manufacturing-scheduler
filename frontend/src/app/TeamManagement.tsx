@@ -22,13 +22,18 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [visiblePwIds, setVisiblePwIds] = useState<Set<string>>(new Set());
+  const [isForbidden, setIsForbidden] = useState(false);
 
   // Create form state
   const [formName, setFormName] = useState("");
   const [formId, setFormId] = useState("");
   const [formPw, setFormPw] = useState("");
   const [formRole, setFormRole] = useState<"leader" | "member">("member");
+
+  // Password change modal state
+  const [isPwModalOpen, setIsPwModalOpen] = useState(false);
+  const [targetEmpForPw, setTargetEmpForPw] = useState<Employee | null>(null);
+  const [newPw, setNewPw] = useState("");
 
   // Helper for Authorization Headers
   const getAuthHeaders = () => {
@@ -45,6 +50,10 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
       const res = await fetch("/api/employees?limit=500", {
         headers: getAuthHeaders()
       });
+      if (res.status === 403) {
+        setIsForbidden(true);
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setEmployees(data.items);
@@ -76,12 +85,49 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
     setCurrentPage(1);
   };
 
-  const togglePwVisible = (id: string) => {
-    setVisiblePwIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  const handleOpenPwModal = (emp: Employee) => {
+    setTargetEmpForPw(emp);
+    setNewPw("");
+    setIsPwModalOpen(true);
+  };
+
+  const handleClosePwModal = () => {
+    setTargetEmpForPw(null);
+    setNewPw("");
+    setIsPwModalOpen(false);
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetEmpForPw) return;
+    if (!newPw.trim()) {
+      alert("비밀번호를 입력해 주세요.");
+      return;
+    }
+    if (newPw.trim().length < 4) {
+      alert("비밀번호는 최소 4글자 이상이어야 합니다.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/employees/${targetEmpForPw.emp_id}/password`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          new_password: newPw.trim()
+        })
+      });
+
+      if (res.ok) {
+        handleClosePwModal();
+        onShowToast(`'${targetEmpForPw.emp_name}' 직원의 비밀번호가 변경되었습니다.`);
+      } else {
+        const errData = await res.json();
+        alert(errData.detail || "비밀번호 변경에 실패했습니다.");
+      }
+    } catch (err) {
+      alert("서버 통신 오류로 비밀번호를 변경하지 못했습니다.");
+    }
   };
 
   const handleDelete = async (emp: Employee) => {
@@ -157,6 +203,21 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
   const endPage = Math.min(totalPages, startPage + 4);
   for (let i = startPage; i <= endPage; i++) pageNumbers.push(i);
 
+  if (isForbidden) {
+    return (
+      <div style={{ padding: "40px", display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh", width: "100%" }}>
+        <div style={{ padding: "40px", textAlign: "center", borderColor: "#fca5a5", border: "1px solid #fecaca", borderRadius: "12px", backgroundColor: "#fff", maxWidth: "500px", width: "100%" }}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>🚫</div>
+          <h2 style={{ color: "#dc2626", fontSize: "20px", fontWeight: "bold" }}>접근 권한이 없습니다</h2>
+          <p style={{ color: "#4b5563", marginTop: "8px", fontSize: "14px" }}>
+            이 데이터를 조회하거나 관리할 수 있는 권한이 없습니다. (API 403 Forbidden)
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+
   return (
     <div className="tm-page">
 
@@ -197,7 +258,6 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
           <tbody>
             {paginated.length > 0 ? (
               paginated.map((emp) => {
-                const pwVisible = visiblePwIds.has(emp.emp_id);
                 return (
                   <tr key={emp.emp_id} className="tm-row">
                     <td className="tm-cell-name">{emp.emp_name}</td>
@@ -205,19 +265,11 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
                     <td className="tm-cell-pw">
                       <button
                         type="button"
-                        className="tm-eye-btn"
-                        onClick={() => togglePwVisible(emp.emp_id)}
-                        title={pwVisible ? "숨기기" : "보기"}
+                        className="tm-btn tm-btn-export"
+                        onClick={() => handleOpenPwModal(emp)}
                       >
-                        {pwVisible ? (
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                        ) : (
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                        )}
+                        비밀번호 변경
                       </button>
-                      <span className="tm-pw-text">
-                        {pwVisible ? emp.login_pw : "••••••••"}
-                      </span>
                     </td>
                     <td className="tm-cell-role">{emp.emp_role}</td>
                     <td className="tm-cell-actions">
@@ -342,6 +394,60 @@ export default function TeamManagement({ onShowToast }: TeamManagementProps) {
                 </button>
                 <button type="submit" className="tm-modal-submit">
                   생성
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Change Password Modal ── */}
+      {isPwModalOpen && targetEmpForPw && (
+        <div className="tm-modal-backdrop" onClick={handleClosePwModal}>
+          <div className="tm-modal" onClick={(e) => e.stopPropagation()}>
+            {/* Modal header */}
+            <div className="tm-modal-header">
+              <span className="tm-modal-title">비밀번호 변경</span>
+              <button className="tm-modal-close" onClick={handleClosePwModal}>
+                ✕
+              </button>
+            </div>
+
+            {/* Modal form */}
+            <form className="tm-modal-form" onSubmit={handleUpdatePassword}>
+              <div className="tm-field">
+                <label className="tm-field-label">대상 직원</label>
+                <div style={{
+                  fontSize: "13px",
+                  color: "var(--text-secondary)",
+                  background: "#f8fafc",
+                  padding: "8px 12px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--border)",
+                  fontWeight: 500
+                }}>
+                  {targetEmpForPw.emp_name} ({targetEmpForPw.login_id})
+                </div>
+              </div>
+
+              <div className="tm-field">
+                <label className="tm-field-label">새 비밀번호</label>
+                <input
+                  className="tm-field-input"
+                  type="password"
+                  placeholder="새 비밀번호를 입력하세요"
+                  value={newPw}
+                  onChange={(e) => setNewPw(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="tm-modal-actions">
+                <button type="button" className="tm-modal-cancel" onClick={handleClosePwModal}>
+                  취소
+                </button>
+                <button type="submit" className="tm-modal-submit">
+                  변경
                 </button>
               </div>
             </form>

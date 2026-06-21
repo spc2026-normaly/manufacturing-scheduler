@@ -24,6 +24,7 @@ export default function EquipmentsPage() {
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [upcomingEquipments, setUpcomingEquipments] = useState<UpcomingEquipment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isForbidden, setIsForbidden] = useState(false);
 
   // Helper for Authorization Headers
   const getAuthHeaders = () => {
@@ -41,6 +42,12 @@ export default function EquipmentsPage() {
 
       // 1. Fetch entire equipments
       const eqRes = await fetch("/api/equipments", { headers });
+
+      if (eqRes.status === 403) {
+        setIsForbidden(true);
+        setLoading(false);
+        return;
+      }
       let eqData: Equipment[] = [];
       if (eqRes.ok) {
         eqData = await eqRes.json();
@@ -113,7 +120,6 @@ export default function EquipmentsPage() {
           display: grid;
           grid-template-columns: 2fr 1fr;
           gap: 24px;
-          align-items: start;
         }
         @media (max-width: 1024px) {
           .eq-top-grid {
@@ -131,12 +137,12 @@ export default function EquipmentsPage() {
           background-color: var(--card-bg, #ffffff);
           border: 1px solid var(--border, #e2e8f0);
           border-radius: 12px;
-          padding: 16px 20px;
+          padding: 24px;
           box-shadow: 0 1px 3px rgba(0,0,0,0.05);
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          min-height: 100px;
+          min-height: 140px;
         }
         .eq-metric-title {
           font-size: 15px;

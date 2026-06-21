@@ -6,12 +6,8 @@ alembic==1.14.0
 pydantic==2.10.3
 pydantic-settings==2.7.0
 python-dotenv==1.0.1
-httpx==0.28.1          # 비동기 HTTP 클라이언트 (테스트 등)
+httpx==0.28.1
 bcrypt==4.2.0
 python-jose[cryptography]==3.3.0
-<<<<<<< HEAD
-
 python-multipart
-=======
 pgvector==0.2.5
->>>>>>> fb129ad28ce94a8a809f70d41dae7fdb7b6a90ad

@@ -181,26 +181,42 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
             <div key={index} className={`chat-message ${msg.sender}`}>
               <div className="message-bubble-wrapper">
                 <div className="message-bubble">
-                  {msg.text.split("\n").map((line, lIdx) => (
-                    <p key={lIdx} style={{ margin: line === "" ? "8px 0" : "2px 0" }}>
-                      {line.split("**").map((part, pIdx) =>
-                        pIdx % 2 === 1 ? (
-                          <strong key={pIdx} style={{ color: "var(--accent-blue)" }}>
-                            {part}
-                          </strong>
-                        ) : (
-                          part
-                        )
-                      )}
-                    </p>
-                  ))}
-                </div>
-                <span className="message-time">{msg.time}</span>
-              </div>
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
+                  {msg.text.split("\n").map((line, lIdx) => {
+                    const cleanLine = line.replace(/📥\s*/, "");
+                    const linkMatch = cleanLine.match(/\[(.+?)\]\((\/api\/.+?)\)/);
+                    if (linkMatch) {
+                      return (
+                        <p key={lIdx} style={{ margin: "2px 0" }}> 
+                          <a
+                            href={linkMatch[2]}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ color: "#3b82f6", textDecoration: "underline", cursor: "pointer" }}
+                          >
+                            {linkMatch[1]}
+                        </a>
+                      </p>
+                      );
+                    }
+                    return (
+                      <p key={lIdx} style={{ margin: line === "" ? "8px 0" : "2px 0" }}>
+                        {line.split("**").map((part, pIdx) =>
+                          pIdx % 2 === 1 ? (
+                            <strong key={pIdx} style={{ color: "var(--accent-blue)" }}>{part}</strong>
+                          ) : (
+                            part
+                          )
+                        )}
+                      </p>
+                    );
+                  })}
+                                  </div>
+                                  <span className="message-time">{msg.time}</span>
+                                </div>
+                              </div>
+                            ))}
+                            <div ref={messagesEndRef} />
+                          </div>
 
         {/* 빠른 질문 제안 */}
         <div className="chat-suggestions">

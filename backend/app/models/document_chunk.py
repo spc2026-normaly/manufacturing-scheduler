@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import String, Integer, Text, DateTime, ForeignKeyConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 from pgvector.sqlalchemy import Vector
 
 from app.database import Base
@@ -36,4 +36,4 @@ class DocumentChunk(Base):
     )
 
     # Relationship to easily fetch document info from a chunk
-    document = relationship("Document", backref="chunks")
+    document = relationship("Document", backref=backref("chunks", cascade="all, delete-orphan", passive_deletes=True))

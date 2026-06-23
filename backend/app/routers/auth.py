@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 import bcrypt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -57,6 +57,8 @@ class TokenData:
     """DB 조회 없이 JWT 토큰에서 추출한 사용자 식별 + 역할 정보."""
     login_id: str
     role: str
+    emp_id: str
+    emp_name: str
     permissions: set[str] = field(default_factory=set)
 
 
@@ -95,13 +97,16 @@ def get_employee_by_login_id(db: Session, login_id: str) -> Optional[Employee]:
 
 def _get_token_from_header(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
+    token: Optional[str] = Query(None, description="쿼리 스트링 토큰 (다운로드용)"),
 ) -> str:
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="인증 토큰이 없습니다.",
-        )
-    return credentials.credentials
+    if credentials:
+        return credentials.credentials
+    if token:
+        return token
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="인증 토큰이 없습니다.",
+    )
 
 
 def _decode_token_and_get_employee(token: str, db: Session) -> Employee:
@@ -137,20 +142,31 @@ def get_current_employee(
 
 def get_current_user_claims(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
+    token: Optional[str] = Query(None, description="쿼리 스트링 토큰 (다운로드용)"),
+    db: Session = Depends(get_db),
 ) -> TokenData:
     """
     DB를 전혀 조회하지 않고 JWT 토큰만을 복호화하여 TokenData를 반환합니다.
     역할(role)은 로그인 시 토큰에 내장되므로 DB 없이도 즉시 검증 가능합니다.
+    (단, 토큰에 emp_id/emp_name이 없을 경우 하위 호환성을 위해 DB를 조회합니다)
     """
     unauthorized = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="인증 토큰이 없거나 유효하지 않습니다.",
     )
-    if not credentials:
+    
+    token_str = None
+    if credentials:
+        token_str = credentials.credentials
+    elif token:
+        token_str = token
+        
+    if not token_str:
         raise unauthorized
+        
     try:
         payload = jwt.decode(
-            credentials.credentials, settings.SECRET_KEY, algorithms=[ALGORITHM]
+            token_str, settings.SECRET_KEY, algorithms=[ALGORITHM]
         )
         login_id: str = payload.get("sub")
         role: str = payload.get("role")
@@ -159,8 +175,23 @@ def get_current_user_claims(
     except JWTError:
         raise unauthorized
 
+    emp_id = payload.get("emp_id")
+    emp_name = payload.get("emp_name")
+    if not emp_id or not emp_name:
+        emp = get_employee_by_login_id(db, login_id)
+        if not emp:
+            raise unauthorized
+        emp_id = emp.emp_id
+        emp_name = emp.emp_name
+
     perms = ROLE_PERMISSIONS.get(role, set())
-    return TokenData(login_id=login_id, role=role, permissions=perms)
+    return TokenData(
+        login_id=login_id,
+        role=role,
+        emp_id=emp_id,
+        emp_name=emp_name,
+        permissions=perms
+    )
 
 
 def PermissionChecker(*required_permissions: str):
@@ -213,7 +244,12 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
             detail="아이디 또는 비밀번호가 올바르지 않습니다.",
         )
 
-    token = create_access_token({"sub": emp.login_id, "role": emp.emp_role})
+    token = create_access_token({
+        "sub": emp.login_id,
+        "role": emp.emp_role,
+        "emp_id": emp.emp_id,
+        "emp_name": emp.emp_name
+    })
     return TokenResponse(
         access_token=token,
         token_type="bearer",

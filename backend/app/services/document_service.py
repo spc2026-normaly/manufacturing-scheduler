@@ -388,7 +388,7 @@ def search_rag_chunks(db: Session, query: str, top_k: int | None = None) -> list
 
 
 def get_document_bytes(db: Session, file_id: str) -> tuple[Document, bytes]:
-    doc = db.get(Document, file_id)
+    doc = db.query(Document).filter(Document.file_id == file_id).first()
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다."

@@ -80,7 +80,7 @@ export default function DocumentsPage() {
   };
 
   const handleDownload = (doc: DocFile) => {
-    window.open(`${API_BASE}/${doc.file_id}/download`, "_blank");
+    window.open(`${API_BASE}/${doc.file_id}/download?token=${getToken()}`, "_blank");
     showToast(`'${doc.file_name}' 다운로드를 시작합니다.`);
   };
 

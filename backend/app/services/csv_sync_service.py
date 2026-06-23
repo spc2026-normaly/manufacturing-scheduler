@@ -52,10 +52,24 @@ def _parse_int(value: str | None, default: int = 0) -> int:
 def _read_rows(file_bytes: bytes) -> list[dict[str, str]]:
     content = _decode_csv(file_bytes)
     reader = csv.DictReader(StringIO(content))
-    rows: list[dict[str, str]] = []
+
+    # 동기화 에러 발생해서 임시 방편으로 수정
+    rows = []
+
     for row in reader:
-        cleaned = {(k or "").strip(): (v or "").strip() for k, v in row.items()}
-        if any(v for v in cleaned.values()):
+        cleaned = {}
+
+        for k, v in row.items():
+            key = str(k or "").strip()
+
+            if isinstance(v, list):
+                value = ",".join(str(x) for x in v).strip()
+            else:
+                value = str(v or "").strip()
+
+            cleaned[key] = value
+
+        if any(cleaned.values()):
             rows.append(cleaned)
     return rows
 

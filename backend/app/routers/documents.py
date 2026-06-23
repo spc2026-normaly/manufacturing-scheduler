@@ -1,13 +1,5 @@
-from app.database import get_db
-from app.models.document import Document
-from app.models.employee import Employee
-from app.routers.auth import Permission, PermissionChecker
-
-import os
-import uuid
-import logging
-from urllib.parse import unquote
-
+from sqlalchemy.orm import Session
+from sqlalchemy import select
 from fastapi import (
     APIRouter,
     UploadFile, File, Depends,
@@ -17,13 +9,9 @@ from fastapi import (
     status,
 )
 
-from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import select
 from app.database import get_db
 from app.models.document import Document
-from app.models.employee import Employee
-from app.routers.auth import require_leader, get_current_employee
+from app.routers.auth import Permission, PermissionChecker, TokenData
 from app.services.document_service import (
     DocumentCategory,
     get_document_bytes,
@@ -32,37 +20,21 @@ from app.services.document_service import (
 )
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
-logger = logging.getLogger(__name__)
-
-UPLOAD_DIR = "/app/uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.get("", summary="문서 목록 조회")
-def get_documents(db: Session = Depends(get_db), _: object = Depends(PermissionChecker(Permission.DOCUMENT_READ))):
+def get_documents(
+    db: Session = Depends(get_db),
+    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_READ))
+):
+    """문서 목록 조회"""
     return db.execute(select(Document)).scalars().all()
 
-@router.get("/{file_id}", summary="문서 단건 조회")
-def get_document(file_id: str, db: Session = Depends(get_db), _: object = Depends(PermissionChecker(Permission.DOCUMENT_READ))):
-    doc = db.get(Document, file_id)
-    if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
-    return doc
-
-@router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT, summary="문서 삭제")
-def delete_document(file_id: str, db: Session = Depends(get_db), _: object = Depends(PermissionChecker(Permission.DOCUMENT_WRITE))):
-    doc = db.get(Document, file_id)
-    if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
-    db.delete(doc)
-    db.commit()
-
-@router.post("", summary="문서 업로드")
+@router.post("/upload", summary="문서 업로드")
 async def upload_document(
     file: UploadFile = File(...),
-    # category: RAG 임베딩용 또는 CSV 입력 데이터
     category: DocumentCategory = Query(default="rag"),
     db: Session = Depends(get_db),
-    current_emp: Employee = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
+    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
 ):
     """파일 업로드 + R2 저장 + 벡터 임베딩 처리"""
     return await process_uploaded_document(
@@ -72,34 +44,33 @@ async def upload_document(
         category=category,
     )
 
-
-# R2 동기화 엔드포인트
 @router.post("/sync-r2", summary="R2 문서 동기화")
 def sync_documents_from_r2(
     db: Session = Depends(get_db),
-    current_emp: Employee = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
+    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
 ):
     """R2 클라우드페어의 모든 파일을 DB와 동기화 (추가/업데이트/삭제)"""
     return sync_r2_documents(db, uploader=current_emp.emp_id)
 
-# 문서 상세 조회
 @router.get("/{file_id}", summary="문서 단건 조회")
 def get_document(
-    file_id: str, db: Session = Depends(get_db), _: object = Depends(PermissionChecker(Permission.DOCUMENT_READ))
+    file_id: str,
+    db: Session = Depends(get_db),
+    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_READ))
 ):
     """특정 파일ID의 문서 메타데이터 조회"""
-    doc = db.get(Document, file_id)
+    doc = db.query(Document).filter(Document.file_id == file_id).first()
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다."
         )
-    if not os.path.exists(doc.file_path):
-        raise HTTPException(status_code=404, detail="파일이 서버에 존재하지 않습니다.")
-    return FileResponse(path=doc.file_path, filename=doc.file_name)
+    return doc
 
 @router.get("/{file_id}/download", summary="문서 다운로드")
 def download_document(
-    file_id: str, db: Session = Depends(get_db), _: object = Depends(PermissionChecker(Permission.DOCUMENT_READ))
+    file_id: str,
+    db: Session = Depends(get_db),
+    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_READ))
 ):
     """R2에서 파일 다운로드 (바이너리 응답)"""
     doc, file_bytes = get_document_bytes(db=db, file_id=file_id)
@@ -109,23 +80,21 @@ def download_document(
         headers={"Content-Disposition": f'attachment; filename="{doc.file_name}"'},
     )
 
-@router.delete(
-    "/{file_id}", status_code=status.HTTP_204_NO_CONTENT, summary="문서 삭제"
-)
+@router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT, summary="문서 삭제")
 def delete_document(
-    file_id: str, db: Session = Depends(get_db), current_emp: Employee = Depends(PermissionChecker(Permission.DOCUMENT_WRITE))
+    file_id: str,
+    db: Session = Depends(get_db),
+    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_WRITE))
 ):
     """문서 메타데이터만 DB에서 삭제 (R2는 수동으로 삭제 필요)"""
-    doc = db.query(Document).filter(Document.file_id == file_id, Document.uploader == current_emp.emp_id).first()
+    doc = db.query(Document).filter(
+        Document.file_id == file_id,
+        Document.uploader == current_emp.emp_id
+    ).first()
     if not doc:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다."
-        )
-    db.delete(doc)
-    db.commit()
-    if not doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다."
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="문서를 찾을 수 없거나 삭제 권한이 없습니다."
         )
     db.delete(doc)
     db.commit()

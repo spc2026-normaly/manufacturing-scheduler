@@ -15,6 +15,7 @@ from app.routers.safety_training import router as safety_training_router
 from app.routers.equipment import router as equipment_router
 from app.routers.documents import router as documents_router
 from app.routers.chatbot import router as chatbot_router
+from prometheus_fastapi_instrumentator import Instrumentator
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -50,6 +51,9 @@ app.include_router(safety_training_router)
 app.include_router(equipment_router)
 app.include_router(documents_router)
 app.include_router(chatbot_router)
+
+# Prometheus 메트릭 연동
+Instrumentator().instrument(app).expose(app)
 
 
 @app.get("/", include_in_schema=False)

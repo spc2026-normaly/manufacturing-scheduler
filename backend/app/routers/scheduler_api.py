@@ -81,9 +81,25 @@ def create_employee(employee: EmployeeCreate):
 
 # ─────────────── Order Endpoints ──────────────────────────────────────────
 @router.get("/orders", response_model=List[OrderResponse], summary="주문 목록 조회")
-def get_orders():
-    """등록된 모든 생산 주문 목록을 조회합니다. (API 스텁)"""
-    return []
+def get_orders(db: Session = Depends(get_db)):
+    """등록된 모든 생산 주문 목록을 조회합니다."""
+    sql = """
+    SELECT order_id, order_num, product_name, order_count, due_date, order_status
+    FROM orders
+    ORDER BY order_num ASC
+    """
+    rows = db.execute(text(sql)).mappings().all()
+    return [
+        {
+            "order_id": row["order_id"],
+            "order_num": row["order_num"],
+            "product_name": row["product_name"],
+            "order_count": row["order_count"],
+            "due_date": row["due_date"],
+            "order_status": row["order_status"]
+        }
+        for row in rows
+    ]
 
 @router.post("/orders", response_model=OrderResponse, status_code=status.HTTP_201_CREATED, summary="주문 등록")
 def create_order(order: OrderCreate):

@@ -82,6 +82,7 @@ export default function SchedulesPage() {
   const [orderNumFilter, setOrderNumFilter] = useState<string>("");
   const [summary, setSummary] = useState<{ total: number; factories: Record<string, number> } | null>(null);
   const [ganttGroupBy, setGanttGroupBy] = useState<"facility" | "order">("facility");
+  const [ordersList, setOrdersList] = useState<string[]>([]);
 
   // Date formatting helpers
   const getFormattedDate = (date: Date) => {
@@ -306,6 +307,22 @@ export default function SchedulesPage() {
       fetchSummary();
     }
   }, [selectedDate, currentTab]);
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const res = await fetch("/api/orders");
+        if (res.ok) {
+          const data = await res.json();
+          const nums = data.map((o: any) => o.order_num);
+          setOrdersList(nums);
+        }
+      } catch (e) {
+        console.error("Failed to fetch orders", e);
+      }
+    };
+    fetchOrders();
+  }, []);
 
   // Date Navigation handlers
   const handlePrevDay = () => {
@@ -1118,13 +1135,19 @@ export default function SchedulesPage() {
                   <option value="F공장동">F공장동</option>
                   <option value="G공장동">G공장동</option>
                 </select>
-                <input
+                <select
                   className="gantt-select"
                   style={{ minWidth: "180px" }}
-                  placeholder="주문번호 필터 (예: PO001)"
                   value={orderNumFilter}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrderNumFilter(e.target.value)}
-                />
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setOrderNumFilter(e.target.value)}
+                >
+                  <option value="">주문번호 선택 - 전체</option>
+                  {ordersList.map((num) => (
+                    <option key={num} value={num}>
+                      {num}
+                    </option>
+                  ))}
+                </select>
                 <button className="sched-btn" onClick={() => showToast("캘린더 데이터를 새로고침했습니다.")}>C 새로고침</button>
               </div>
             </div>

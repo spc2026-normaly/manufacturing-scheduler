@@ -1,9 +1,7 @@
 from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-
 from app.config import settings
 from app.database import engine
 from app.models import Base
@@ -11,13 +9,12 @@ from app.routers.health import router as health_router
 from app.routers.scheduler_api import router as scheduler_router
 from app.routers.auth import router as auth_router
 from app.routers.employees import router as employees_router
-
 from app.routers.safety_training import router as safety_training_router
 from app.routers.equipment import router as equipment_router
 from app.routers.documents import router as documents_router
 from app.routers.chatbot import router as chatbot_router
 from prometheus_fastapi_instrumentator import Instrumentator
-
+from app.routers.schedule_generator import router as schedule_generator_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,7 +32,6 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     yield
 
-
 app = FastAPI(
     title="Manufacturing Scheduler API",
     description="생산 일정 관리 시스템 백엔드 API",
@@ -45,7 +41,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ─── CORS ─────────────────────────────────────────────────────────────────────
+# ─── CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost", "http://localhost:3000"],
@@ -69,6 +65,7 @@ app.include_router(scheduler_router)  # 스텁 라우터는 항상 마지막에 
 # Prometheus 메트릭 연동
 Instrumentator().instrument(app).expose(app)
 
+app.include_router(schedule_generator_router)
 
 @app.get("/", include_in_schema=False)
 def root():

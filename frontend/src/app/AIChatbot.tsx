@@ -15,16 +15,50 @@ interface AIChatbotProps {
   initialMessages?: ChatMessage[];
 }
 
-// ── API call: POST /api/chatbot ────────────────────────────────────
-async function fetchBotReply(message: string): Promise<string> {
+// ── API call: POST /api/chatbot 또는 /api/csv-edit ────────────────────
+async function fetchBotReply(message: string, file?: File): Promise<string> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+  // CSV 파일이 첨부되면 /api/csv-edit, 없으면 /api/chatbot으로 요청
+  if (file) {
+    const formData = new FormData();
+    formData.append("message", message);
+    formData.append("file", file);
+
+    const res = await fetch("/api/csv-edit", {
+      method: "POST",
+      headers: {
+        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("❌ CSV Edit API 에러:", res.status, errText);
+      throw new Error(`서버 오류: ${res.status}`);
+    }
+
+    const data: { reply: string; source: string } = await res.json();
+    return data.reply;
+  }
+
+  // 텍스트만 입력한 경우 (RAG 기반 답변)
   const res = await fetch("/api/chatbot", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ message }),
   });
+
   if (!res.ok) {
+    const errText = await res.text();
+    console.error("❌ 챗봇 API 에러:", res.status, errText);
     throw new Error(`서버 오류: ${res.status}`);
   }
+
   const data: { reply: string; source: string } = await res.json();
   return data.reply;
 }
@@ -58,6 +92,8 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(
     initialMessages ?? DEFAULT_MESSAGES
   );
@@ -83,20 +119,17 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
   const handleSend = async (text: string) => {
     if (!text.trim() || isLoading) return;
     const userMsg = text.trim();
-    appendMessage({ sender: "user", text: userMsg, time: getTimeString() });
+    const fileLabel = attachedFile ? ` 📎 ${attachedFile.name}` : "";
+    appendMessage({ sender: "user", text: userMsg + fileLabel, time: getTimeString() });
     setIsLoading(true);
     try {
-      const reply = await fetchBotReply(userMsg);
+      const reply = await fetchBotReply(userMsg, attachedFile || undefined);
       appendMessage({ sender: "bot", text: reply, time: getTimeString() });
     } catch (err) {
-      appendMessage({
-        sender: "bot",
-        text: "⚠️ 서버와 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
-        time: getTimeString(),
-      });
-      console.error("[AIChatbot] API error:", err);
+      appendMessage({ sender: "bot", text: "⚠️ 서버와 통신 중 오류가 발생했습니다.", time: getTimeString() });
     } finally {
       setIsLoading(false);
+      setAttachedFile(null);
     }
   };
 
@@ -181,26 +214,42 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
             <div key={index} className={`chat-message ${msg.sender}`}>
               <div className="message-bubble-wrapper">
                 <div className="message-bubble">
-                  {msg.text.split("\n").map((line, lIdx) => (
-                    <p key={lIdx} style={{ margin: line === "" ? "8px 0" : "2px 0" }}>
-                      {line.split("**").map((part, pIdx) =>
-                        pIdx % 2 === 1 ? (
-                          <strong key={pIdx} style={{ color: "var(--accent-blue)" }}>
-                            {part}
-                          </strong>
-                        ) : (
-                          part
-                        )
-                      )}
-                    </p>
-                  ))}
-                </div>
-                <span className="message-time">{msg.time}</span>
-              </div>
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
+                  {msg.text.split("\n").map((line, lIdx) => {
+                    const cleanLine = line.replace(/📥\s*/, "");
+                    const linkMatch = cleanLine.match(/\[(.+?)\]\((\/api\/.+?)\)/);
+                    if (linkMatch) {
+                      return (
+                        <p key={lIdx} style={{ margin: "2px 0" }}> 
+                          <a
+                            href={linkMatch[2]}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ color: "#3b82f6", textDecoration: "underline", cursor: "pointer" }}
+                          >
+                            {linkMatch[1]}
+                        </a>
+                      </p>
+                      );
+                    }
+                    return (
+                      <p key={lIdx} style={{ margin: line === "" ? "8px 0" : "2px 0" }}>
+                        {line.split("**").map((part, pIdx) =>
+                          pIdx % 2 === 1 ? (
+                            <strong key={pIdx} style={{ color: "var(--accent-blue)" }}>{part}</strong>
+                          ) : (
+                            part
+                          )
+                        )}
+                      </p>
+                    );
+                  })}
+                                  </div>
+                                  <span className="message-time">{msg.time}</span>
+                                </div>
+                              </div>
+                            ))}
+                            <div ref={messagesEndRef} />
+                          </div>
 
         {/* 빠른 질문 제안 */}
         <div className="chat-suggestions">
@@ -228,6 +277,26 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
         {/* 입력창 */}
         <form className="chat-input-area" onSubmit={handleFormSubmit}>
           <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: "none" }}
+            accept=".csv,.xlsx,.pdf"
+            onChange={(e) => setAttachedFile(e.target.files?.[0] || null)}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, padding: "0 4px" }}
+            title="파일 첨부"
+          >
+            📎
+          </button>
+          {attachedFile && (
+            <span style={{ fontSize: 11, color: "#3b82f6", maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {attachedFile.name}
+            </span>
+          )}
+          <input
             type="text"
             className="chat-textbox"
             placeholder={isLoading ? "응답을 기다리는 중..." : "질문을 입력하세요..."}
@@ -235,12 +304,7 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
             onChange={(e) => setChatInput(e.target.value)}
             disabled={isLoading}
           />
-          <button
-            type="submit"
-            className="chat-send-btn"
-            disabled={isLoading}
-            style={{ opacity: isLoading ? 0.6 : 1, cursor: isLoading ? "not-allowed" : "pointer" }}
-          >
+          <button type="submit" className="chat-send-btn" disabled={isLoading}>
             {isLoading ? "..." : "전송"}
           </button>
         </form>

@@ -1,13 +1,22 @@
+import csv
+import io
+import uuid
+import os
+from fastapi import APIRouter, UploadFile, File, Form, Depends, Query
+from fastapi.responses import FileResponse
 from openai import OpenAI
-from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.schemas.chatbot import ChatRequest, ChatResponse
+from app.schemas.chatbot import ChatRequest, ChatResponse, ChatResponse
 from app.services.document_service import search_rag_chunks
 
 router = APIRouter(prefix="/api", tags=["chatbot"])
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+UPLOAD_DIR = "/app/uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 def _build_context(chunks: list[dict]) -> str:
@@ -52,7 +61,7 @@ def _answer_with_openai(question: str, context: str) -> str:
 @router.post(
     "/chatbot",
     response_model=ChatResponse,
-    summary="챗봇 메시지 처리",
+    summary="챗봇 메시지 처리 (RAG 기반)",
     description="사용자 질문 임베딩 후 pgvector에서 문서 청크를 검색해 답변을 생성합니다.",
 )
 async def chat(
@@ -85,3 +94,93 @@ async def chat(
             ),
             source="rag-fallback",
         )
+
+
+# ─── CSV 수정 엔드포인트 ──────────────────────────────────
+@router.post("/csv-edit", response_model=ChatResponse, summary="CSV 파일 수정 처리")
+async def chat_csv_edit(
+    message: str = Form(...),
+    file: UploadFile = File(None)
+) -> ChatResponse:
+    """CSV 파일 수정 요청 처리"""
+    file_content = ""
+
+    if file and file.filename:
+        content = await file.read()
+        ext = os.path.splitext(file.filename)[1].lower()
+
+        if ext == ".csv":
+            decoded = ""
+            for encoding in ["utf-8-sig", "utf-8", "cp949", "euc-kr"]:
+                try:
+                    decoded = content.decode(encoding)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            if not decoded:
+                decoded = content.decode("cp949", errors="ignore")
+            # 전체 파일 내용을 전달 (3000자 제한 제거)
+            file_content = f"\n\n[첨부 CSV: {file.filename}]\n{decoded}"
+
+    prompt = f"""사용자 요청: {message}
+{file_content}
+
+CSV 파일이 첨부되고 수정 요청이 있는 경우:
+1. 수정된 전체 CSV 데이터를 반환해주세요 (모든 행 포함)
+2. 응답 형식:
+REPLY: (사용자에게 보여줄 메시지)
+CSV:
+(수정된 CSV 내용, 헤더 포함, 모든 행)
+3. CSV 생성 시 주의사항:
+   - 모든 행을 포함해야 함
+   - 따옴표(")는 필요한 경우만 사용 (쉼표나 줄바꿈이 있는 필드만)
+   - 원본 데이터 형식 유지
+
+CSV 수정 요청이 없는 일반 질문은 그냥 답변해주세요."""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+
+    result = response.choices[0].message.content.strip()
+
+    if "CSV:" in result and file and file.filename:
+        parts = result.split("CSV:", 1)
+        reply_text = parts[0].replace("REPLY:", "").strip()
+        csv_data = parts[1].strip()
+
+        filename = f"modified_{uuid.uuid4().hex[:8]}.csv"
+        filepath = os.path.join(UPLOAD_DIR, filename)
+        
+        # CSV를 제대로 파싱 후 다시 쓰기 (따옴표 정규화)
+        try:
+            # StringIO로 CSV 파싱
+            csv_reader = csv.reader(io.StringIO(csv_data))
+            csv_lines = list(csv_reader)
+            
+            # 다시 쓸 때 최소 quoting 사용 (필요한 경우만)
+            with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
+                csv_writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL, lineterminator="\n")
+                csv_writer.writerows(csv_lines)
+        except Exception as e:
+            # 파싱 실패 시 원본 그대로 사용
+            with open(filepath, "w", encoding="utf-8-sig") as f:
+                f.write(csv_data)
+
+        download_url = f"/api/download/{filename}"
+        reply_text += f"\n\n📥 [수정된 파일 다운로드]({download_url})"
+        return ChatResponse(reply=reply_text, source="gpt")
+
+    return ChatResponse(reply=result, source="gpt")
+
+
+@router.get("/download/{filename}", summary="수정된 파일 다운로드")
+def download_file(filename: str):
+    """수정된 CSV 파일 다운로드"""
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    if not os.path.exists(filepath):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+    return FileResponse(path=filepath, filename=filename, media_type="text/csv")

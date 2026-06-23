@@ -131,6 +131,29 @@ def create_task(task: TaskCreate):
         "task_time": task.task_time
     }
 
+# ─────────────── Document Endpoints ───────────────────────────────────────
+@router.get("/documents", response_model=List[DocumentResponse], summary="업로드 문서 목록 조회")
+def get_documents():
+    """업로드된 문서 및 임베딩 처리 상태를 조회합니다. (API 스텁)"""
+    return []
+
+@router.post("/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED, summary="문서 정보 등록")
+def create_document(document: DocumentCreate):
+    """신규로 업로드한 문서 메타 정보를 등록합니다. (API 스텁)"""
+    return {
+        "file_id": document.file_id,
+        "uploader": document.uploader,
+        "file_name": document.file_name,
+        "file_size": document.file_size,
+        "file_extension": document.file_extension,
+        "file_path": document.file_path,
+        "is_template": document.is_template,
+        "file_created_at": document.file_created_at,
+        "file_updated_at": document.file_updated_at,
+        "embedding_date": document.embedding_date,
+        "embedding_status": document.embedding_status
+    }
+
 
 # ─────────────── Schedule Endpoints ───────────────────────────────────────
 @router.get(
@@ -300,25 +323,3 @@ def create_schedule_assignment(assignment: ScheduleAssignmentCreate):
     }
 
 
-# ─────────────── Document Endpoints ───────────────────────────────────────
-@router.get("/documents", response_model=List[DocumentResponse], summary="업로드 문서 목록 조회")
-def get_documents():
-    """업로드된 문서 및 임베딩 처리 상태를 조회합니다. (API 스텁)"""
-    return []
-
-@router.post("/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED, summary="문서 정보 등록")
-def create_document(document: DocumentCreate):
-    """신규로 업로드한 문서 메타 정보를 등록합니다. (API 스텁)"""
-    return {
-        "file_id": document.file_id,
-        "uploader": document.uploader,
-        "file_name": document.file_name,
-        "file_size": document.file_size,
-        "file_extension": document.file_extension,
-        "file_path": document.file_path,
-        "is_template": document.is_template,
-        "file_created_at": document.file_created_at,
-        "file_updated_at": document.file_updated_at,
-        "embedding_date": document.embedding_date,
-        "embedding_status": document.embedding_status
-    }

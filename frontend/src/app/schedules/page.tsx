@@ -1407,7 +1407,7 @@ export default function SchedulesPage() {
             <div className="month-detail-panel animate-in">
               <div className="month-panel-title">{getFormattedDate(selectedDate)} 배정 현황</div>
               <div className="month-panel-subtitle">
-                총 {selectedDayTasks.reduce((acc, t) => acc + t.workers.length, 0)}명 배치
+                총 {new Set(selectedDayTasks.flatMap((t) => t.workers).filter(Boolean)).size}명 배치
               </div>
               
               <div className="month-detail-tasks-list">
@@ -1456,7 +1456,9 @@ export default function SchedulesPage() {
                   <span className="day-stat-label">작업 공정 수</span>
                 </div>
                 <div className="day-stat-box">
-                  <span className="day-stat-value">{selectedDayTasks.reduce((acc, t) => acc + t.workers.length, 0)}</span>
+                  <span className="day-stat-value">
+                    {new Set(selectedDayTasks.flatMap((t) => t.workers).filter(Boolean)).size}
+                  </span>
                   <span className="day-stat-label">배정 작업자 수</span>
                 </div>
                 <div className="day-stat-box">
@@ -1468,12 +1470,9 @@ export default function SchedulesPage() {
 
             {/* ── Navigation Row ── */}
             <div className="day-nav-row">
-              <button className="day-nav-arrow" onClick={handlePrevDay}>&#8592; 이전날</button>
               <span className="day-nav-title">
                 {selectedDate.getMonth() + 1}월 {selectedDate.getDate()}일 ({getDayName(selectedDate)}) 작업 목록
               </span>
-              <button className="sched-btn" onClick={handleGoToday}>오늘</button>
-              <button className="day-nav-arrow" onClick={handleNextDay}>다음날 &#8594;</button>
             </div>
 
             {/* ── Task Grid ── */}

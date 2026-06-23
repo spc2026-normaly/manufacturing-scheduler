@@ -2,9 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import String, BigInteger, Text, Boolean, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
-
 from app.database import Base
-
 
 class Document(Base):
     __tablename__ = "documents"
@@ -30,3 +28,4 @@ class Document(Base):
     embedding_status: Mapped[str] = mapped_column(
         String(50), nullable=False, default="pending"
     )
+

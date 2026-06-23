@@ -1,15 +1,19 @@
+import os
+import uuid
+import logging
+from urllib.parse import unquote
 from fastapi import (
     APIRouter,
-    Depends,
+    UploadFile, File, Depends,
     HTTPException,
     Query,
     Response,
     UploadFile,
     status,
 )
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-
 from app.database import get_db
 from app.models.document import Document
 from app.models.employee import Employee
@@ -69,8 +73,9 @@ def get_document(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다."
         )
-    return doc
-
+    if not os.path.exists(doc.file_path):
+        raise HTTPException(status_code=404, detail="파일이 서버에 존재하지 않습니다.")
+    return FileResponse(path=doc.file_path, filename=doc.file_name)
 
 @router.get("/{file_id}/download", summary="문서 다운로드")
 def download_document(
@@ -89,10 +94,10 @@ def download_document(
     "/{file_id}", status_code=status.HTTP_204_NO_CONTENT, summary="문서 삭제"
 )
 def delete_document(
-    file_id: str, db: Session = Depends(get_db), _: object = Depends(require_leader)
+    file_id: str, db: Session = Depends(get_db), current_emp: Employee = Depends(get_current_employee)
 ):
     """문서 메타데이터만 DB에서 삭제 (R2는 수동으로 삭제 필요)"""
-    doc = db.get(Document, file_id)
+    doc = db.query(Document).filter(Document.file_id == file_id, Document.uploader == current_emp.emp_id).first()
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다."

@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.config import settings
 from app.database import engine
@@ -17,9 +18,20 @@ from app.routers.documents import router as documents_router
 from app.routers.chatbot import router as chatbot_router
 from prometheus_fastapi_instrumentator import Instrumentator
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """앱 시작 시 DB 테이블 생성 (개발 편의용 — 프로덕션에서는 Alembic 사용)"""
+    # pgvector 확장 활성화 (벡터 임베딩 저장용)
+    with engine.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        # 레거시 테이블 호환성 유지
+        conn.execute(
+            text(
+                "ALTER TABLE IF EXISTS task ADD COLUMN IF NOT EXISTS task_factory VARCHAR(255) NULL"
+            )
+        )
+    # SQLAlchemy 모델 기반 테이블 자동 생성
     Base.metadata.create_all(bind=engine)
     yield
 

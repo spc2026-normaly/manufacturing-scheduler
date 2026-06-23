@@ -26,6 +26,7 @@ interface ProductionTask {
   equipment: string;
   workers: string[];
   product: string;
+  orderNum: string;
   colorClass: string;
   startDate: Date;
   endDate: Date;
@@ -47,12 +48,19 @@ interface CalendarScheduleDto {
   end_date: string;
 }
 
-const TASK_TYPE_COLOR_MAP: Record<string, string> = {
-  공정: "bar-blue",
-  테스트: "bar-green",
+const getFacilityColorClass = (facility: string) => {
+  const fac = facility.replace("공장동", "");
+  switch (fac) {
+    case "A": return "bar-green";
+    case "B": return "bar-blue";
+    case "C": return "bar-orange";
+    case "D": return "bar-purple";
+    case "E": return "bar-teal";
+    case "F": return "bar-pink";
+    case "G": return "bar-indigo";
+    default: return "bar-purple";
+  }
 };
-
-const toColorClass = (taskType: string) => TASK_TYPE_COLOR_MAP[taskType] ?? "bar-purple";
 
 const toYmd = (date: Date) => {
   const yyyy = date.getFullYear();
@@ -72,6 +80,8 @@ export default function SchedulesPage() {
   const [tasks, setTasks] = useState<ProductionTask[]>([]);
   const [factoryFilter, setFactoryFilter] = useState<string>("전체");
   const [orderNumFilter, setOrderNumFilter] = useState<string>("");
+  const [summary, setSummary] = useState<{ total: number; factories: Record<string, number> } | null>(null);
+  const [ganttGroupBy, setGanttGroupBy] = useState<"facility" | "order">("facility");
 
   // Date formatting helpers
   const getFormattedDate = (date: Date) => {
@@ -255,7 +265,8 @@ export default function SchedulesPage() {
             equipment: row.equipment,
             workers: row.workers,
             product: row.product,
-            colorClass: toColorClass(row.task_type),
+            orderNum: row.order_num,
+            colorClass: getFacilityColorClass(row.facility),
             startDate,
             endDate,
             startWeek: Math.max(startWeek, 0),
@@ -272,6 +283,29 @@ export default function SchedulesPage() {
 
     fetchSchedules();
   }, [currentTab, selectedDate, factoryFilter, orderNumFilter, monthWeeks, showToast]);
+
+  useEffect(() => {
+    const fetchSummary = async () => {
+      try {
+        const params = new URLSearchParams({
+          date: toYmd(selectedDate),
+        });
+        const res = await fetch(`/api/schedules/summary?${params.toString()}`);
+        if (!res.ok) {
+          throw new Error("요약 데이터 조회 실패");
+        }
+        const data = await res.json();
+        setSummary(data);
+      } catch (e) {
+        console.error("Failed to fetch schedules summary", e);
+        setSummary(null);
+      }
+    };
+
+    if (currentTab === "month") {
+      fetchSummary();
+    }
+  }, [selectedDate, currentTab]);
 
   // Date Navigation handlers
   const handlePrevDay = () => {
@@ -316,10 +350,19 @@ export default function SchedulesPage() {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    setTooltipPos({
-      x: e.clientX + 15,
-      y: e.clientY + 15
-    });
+    const container = document.querySelector(".sched-container");
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      setTooltipPos({
+        x: e.clientX - rect.left + 15,
+        y: e.clientY - rect.top + 15
+      });
+    } else {
+      setTooltipPos({
+        x: e.clientX + 15,
+        y: e.clientY + 15
+      });
+    }
   };
 
   return (
@@ -330,6 +373,7 @@ export default function SchedulesPage() {
           display: flex;
           flex-direction: column;
           gap: 20px;
+          position: relative;
         }
 
         /* ── Header Tab Navigation ── */
@@ -398,6 +442,77 @@ export default function SchedulesPage() {
           position: relative;
         }
 
+        /* ── Month View Summary Stats ── */
+        .sched-stats-bar {
+          display: grid;
+          grid-template-columns: repeat(8, 1fr);
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+        @media (max-width: 1200px) {
+          .sched-stats-bar {
+            grid-template-columns: repeat(4, 1fr);
+          }
+        }
+        @media (max-width: 640px) {
+          .sched-stats-bar {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        .stat-widget {
+          background-color: #ffffff;
+          border: 1px solid var(--border, #e2e8f0);
+          border-radius: 8px;
+          padding: 12px 10px;
+          text-align: center;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+        .stat-widget:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+          border-color: #cbd5e1;
+        }
+        .stat-widget-label {
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--text-muted, #64748b);
+          margin-bottom: 4px;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          white-space: nowrap;
+        }
+        .stat-widget-value {
+          font-size: 16px;
+          font-weight: 800;
+          color: var(--text-main, #0f172a);
+        }
+        .stat-widget-value span {
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--text-muted, #64748b);
+          margin-left: 2px;
+        }
+        .stat-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          display: inline-block;
+        }
+        .dot-total { background-color: #64748b; }
+        .dot-a { background-color: #16a34a; }
+        .dot-b { background-color: #2563eb; }
+        .dot-c { background-color: #ea580c; }
+        .dot-d { background-color: #9333ea; }
+        .dot-e { background-color: #0d9488; }
+        .dot-f { background-color: #db2777; }
+        .dot-g { background-color: #4f46e5; }
+
         /* ── 1) Month View (Gantt Chart - Weekly Granularity) ── */
         .gantt-title-row {
           display: flex;
@@ -427,6 +542,7 @@ export default function SchedulesPage() {
         .gantt-wrapper {
           overflow-x: auto;
           width: 100%;
+          padding-top: 12px;
         }
         .gantt-table {
           width: 100%;
@@ -444,6 +560,9 @@ export default function SchedulesPage() {
           font-weight: 600;
           color: var(--text-muted, #475569);
           text-align: center;
+          padding-top: 16px;
+          padding-bottom: 10px;
+          height: 52px;
         }
         .gantt-header-day {
           width: 13.5%;
@@ -471,15 +590,23 @@ export default function SchedulesPage() {
           padding: 0;
           height: 48px;
         }
-        .gantt-today-line {
+        .current-week-header {
+          background-color: #eff6ff !important;
+          border-bottom: 2px solid #2563eb !important;
+        }
+        .current-week-badge {
           position: absolute;
-          top: 0;
-          bottom: 0;
+          top: -8px;
           left: 50%;
-          width: 2px;
-          border-left: 2px dotted #3b82f6;
-          z-index: 10;
-          pointer-events: none;
+          transform: translateX(-50%);
+          background-color: #2563eb;
+          color: white;
+          font-size: 8px;
+          font-weight: 800;
+          padding: 1px 6px;
+          border-radius: 20px;
+          box-shadow: 0 2px 4px rgba(37,99,235,0.2);
+          white-space: nowrap;
         }
         
         /* Gantt Blocks */
@@ -511,10 +638,13 @@ export default function SchedulesPage() {
         .bar-green { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
         .bar-purple { background-color: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
         .bar-pink { background-color: #fce7f3; color: #9d174d; border: 1px solid #fbcfe8; }
+        .bar-orange { background-color: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
+        .bar-teal { background-color: #ccfbf1; color: #0f766e; border: 1px solid #99f6e4; }
+        .bar-indigo { background-color: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; }
 
         /* Gantt Tooltip */
         .gantt-tooltip {
-          position: fixed;
+          position: absolute;
           background-color: rgba(15, 23, 42, 0.95);
           color: white;
           padding: 10px 14px;
@@ -909,9 +1039,71 @@ export default function SchedulesPage() {
         {/* ── 1) MONTH VIEW (GANTT CHART - WEEKLY GRANULARITY) ── */}
         {currentTab === "month" && (
           <div>
+            {summary && (
+              <div className="sched-stats-bar animate-in" style={{ animationDelay: "0.05s" }}>
+                <div className="stat-widget">
+                  <span className="stat-widget-label">
+                    <span className="stat-dot dot-total"></span>전체 공정 수
+                  </span>
+                  <span className="stat-widget-value">{summary.total}<span>건</span></span>
+                </div>
+                <div className="stat-widget">
+                  <span className="stat-widget-label">
+                    <span className="stat-dot dot-a"></span>A 공장
+                  </span>
+                  <span className="stat-widget-value">{summary.factories["A공장동"] ?? 0}<span>건</span></span>
+                </div>
+                <div className="stat-widget">
+                  <span className="stat-widget-label">
+                    <span className="stat-dot dot-b"></span>B 공장
+                  </span>
+                  <span className="stat-widget-value">{summary.factories["B공장동"] ?? 0}<span>건</span></span>
+                </div>
+                <div className="stat-widget">
+                  <span className="stat-widget-label">
+                    <span className="stat-dot dot-c"></span>C 공장
+                  </span>
+                  <span className="stat-widget-value">{summary.factories["C공장동"] ?? 0}<span>건</span></span>
+                </div>
+                <div className="stat-widget">
+                  <span className="stat-widget-label">
+                    <span className="stat-dot dot-d"></span>D 공장
+                  </span>
+                  <span className="stat-widget-value">{summary.factories["D공장동"] ?? 0}<span>건</span></span>
+                </div>
+                <div className="stat-widget">
+                  <span className="stat-widget-label">
+                    <span className="stat-dot dot-e"></span>E 공장
+                  </span>
+                  <span className="stat-widget-value">{summary.factories["E공장동"] ?? 0}<span>건</span></span>
+                </div>
+                <div className="stat-widget">
+                  <span className="stat-widget-label">
+                    <span className="stat-dot dot-f"></span>F 공장
+                  </span>
+                  <span className="stat-widget-value">{summary.factories["F공장동"] ?? 0}<span>건</span></span>
+                </div>
+                <div className="stat-widget">
+                  <span className="stat-widget-label">
+                    <span className="stat-dot dot-g"></span>G 공장
+                  </span>
+                  <span className="stat-widget-value">{summary.factories["G공장동"] ?? 0}<span>건</span></span>
+                </div>
+              </div>
+            )}
+
             <div className="gantt-title-row">
               <span className="gantt-title">생산 일정 캘린더 ({selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월)</span>
               <div className="gantt-filters">
+                <select
+                  className="gantt-select"
+                  value={ganttGroupBy}
+                  onChange={(e) => setGanttGroupBy(e.target.value as "facility" | "order")}
+                  style={{ fontWeight: "bold", borderColor: "#3b82f6", color: "#2563eb" }}
+                >
+                  <option value="facility">정렬 기준: 공장동별</option>
+                  <option value="order">정렬 기준: 주문번호별</option>
+                </select>
                 <select
                   className="gantt-select"
                   value={factoryFilter}
@@ -938,80 +1130,189 @@ export default function SchedulesPage() {
             </div>
 
             <div className="gantt-wrapper">
-              <table className="gantt-table">
-                <thead>
-                  <tr>
-                    <th>공장동</th>
-                    <th>작업명</th>
-                    <th>필요장비</th>
-                    {monthWeeks.map((week, index) => (
-                      <th key={index} className="gantt-header-day">
-                        {week.label}
-                        <div style={{ fontSize: "10px", fontWeight: "normal", color: "#64748b", marginTop: "2px" }}>
-                          ({week.range})
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from(new Set(tasks.map((t) => t.facility))).map((facility) => {
-                    const facilityTasks = tasks.filter((t) => t.facility === facility);
-                    return facilityTasks.map((task, idx) => {
-                      const isFirstForFacility = idx === 0;
-                      return (
-                        <tr key={`${task.equipment}_${idx}`} className="eq-row">
-                          {isFirstForFacility && (
-                            <td className="gantt-col-facility" rowSpan={facilityTasks.length}>
+              {ganttGroupBy === "facility" ? (
+                <table className="gantt-table">
+                  <thead>
+                    <tr>
+                      <th>공장동</th>
+                      <th>주문번호</th>
+                      <th>생산제품</th>
+                      {monthWeeks.map((week, index) => {
+                        const isCurrent = index === currentWeekIndexInMonth;
+                        return (
+                          <th
+                            key={index}
+                            className={`gantt-header-day ${isCurrent ? "current-week-header" : ""}`}
+                            style={{ position: "relative" }}
+                          >
+                            {isCurrent && <span className="current-week-badge">이번 주</span>}
+                            {week.label}
+                            <div style={{ fontSize: "10px", fontWeight: "normal", color: isCurrent ? "#2563eb" : "#64748b", marginTop: "2px" }}>
+                              ({week.range})
+                            </div>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from(new Set(tasks.map((t) => t.facility))).map((facility) => {
+                      const facilityTasks = tasks.filter((t) => t.facility === facility);
+                      const uniqueOrderNums = Array.from(new Set(facilityTasks.map((t) => t.orderNum)));
+
+                      return uniqueOrderNums.map((orderNum, idx) => {
+                        const orderTasks = facilityTasks.filter((t) => t.orderNum === orderNum);
+                        const productName = orderTasks[0]?.product || "";
+                        const isFirstForFacility = idx === 0;
+
+                        return (
+                          <tr key={`${facility}_${orderNum}`} className="eq-row">
+                            {isFirstForFacility && (
+                              <td className="gantt-col-facility" rowSpan={uniqueOrderNums.length}>
+                                {facility}
+                              </td>
+                            )}
+                            <td className="gantt-col-task">{orderNum}</td>
+                            <td className="gantt-col-eq">{productName}</td>
+                            {monthWeeks.map((_, weekIndex) => {
+                              const task = orderTasks.find((t) => t.startWeek === weekIndex);
+                              const isWithin = orderTasks.some((t) => weekIndex > t.startWeek && weekIndex <= t.endWeek);
+
+                              if (isWithin) {
+                                return null;
+                              }
+
+                              const colSpan = task ? (task.endWeek - task.startWeek + 1) : 1;
+
+                              return (
+                                <td
+                                  key={weekIndex}
+                                  colSpan={colSpan}
+                                  className="gantt-cell-day"
+                                >
+                                  {task && (
+                                    <div
+                                      className={`gantt-block ${task.colorClass}`}
+                                      onMouseEnter={(e) => {
+                                        setHoveredTask(task);
+                                        handleMouseMove(e);
+                                      }}
+                                      onMouseMove={handleMouseMove}
+                                      onMouseLeave={() => setHoveredTask(null)}
+                                      onClick={() => {
+                                        // Go to the Monday of that week in day tab
+                                        setSelectedDate(monthWeeks[weekIndex].monday);
+                                        setCurrentTab("day");
+                                        showToast(`${monthWeeks[weekIndex].label} 상세 계획으로 이동했습니다.`);
+                                      }}
+                                    >
+                                      {task.taskName}
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      });
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="gantt-table">
+                  <thead>
+                    <tr>
+                      <th>주문번호</th>
+                      <th>생산제품</th>
+                      <th>공장동</th>
+                      {monthWeeks.map((week, index) => {
+                        const isCurrent = index === currentWeekIndexInMonth;
+                        return (
+                          <th
+                            key={index}
+                            className={`gantt-header-day ${isCurrent ? "current-week-header" : ""}`}
+                            style={{ position: "relative" }}
+                          >
+                            {isCurrent && <span className="current-week-badge">이번 주</span>}
+                            {week.label}
+                            <div style={{ fontSize: "10px", fontWeight: "normal", color: isCurrent ? "#2563eb" : "#64748b", marginTop: "2px" }}>
+                              ({week.range})
+                            </div>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from(new Set(tasks.map((t) => t.orderNum))).map((orderNum) => {
+                      const orderTasks = tasks.filter((t) => t.orderNum === orderNum);
+                      const uniqueFacilities = Array.from(new Set(orderTasks.map((t) => t.facility)));
+                      const productName = orderTasks[0]?.product || "";
+
+                      return uniqueFacilities.map((facility, idx) => {
+                        const facilityOrderTasks = orderTasks.filter((t) => t.facility === facility);
+                        const isFirstForOrder = idx === 0;
+
+                        return (
+                          <tr key={`${orderNum}_${facility}`} className="eq-row">
+                            {isFirstForOrder && (
+                              <>
+                                <td className="gantt-col-task" rowSpan={uniqueFacilities.length} style={{ fontWeight: "700", textAlign: "center", backgroundColor: "#f8fafc" }}>
+                                  {orderNum}
+                                </td>
+                                <td className="gantt-col-eq" rowSpan={uniqueFacilities.length} style={{ fontWeight: "600", fontSize: "13px" }}>
+                                  {productName}
+                                </td>
+                              </>
+                            )}
+                            <td className="gantt-col-facility" style={{ color: "#1e3a8a", fontWeight: "700", textAlign: "center", backgroundColor: "#f8fafc" }}>
                               {facility}
                             </td>
-                          )}
-                          <td className="gantt-col-task">{task.taskName}</td>
-                          <td className="gantt-col-eq">{task.equipment}</td>
-                          {monthWeeks.map((_, weekIndex) => {
-                            const isStart = task.startWeek === weekIndex;
-                            const isWithin = weekIndex >= task.startWeek && weekIndex <= task.endWeek;
-                            const colSpan = task.endWeek - task.startWeek + 1;
+                            {monthWeeks.map((_, weekIndex) => {
+                              const task = facilityOrderTasks.find((t) => t.startWeek === weekIndex);
+                              const isWithin = facilityOrderTasks.some((t) => weekIndex > t.startWeek && weekIndex <= t.endWeek);
 
-                            if (isWithin && !isStart) {
-                              return null;
-                            }
+                              if (isWithin) {
+                                return null;
+                              }
 
-                            return (
-                              <td
-                                key={weekIndex}
-                                colSpan={isStart ? colSpan : 1}
-                                className="gantt-cell-day"
-                              >
-                                {weekIndex === currentWeekIndexInMonth && <div className="gantt-today-line"></div>}
-                                {isStart && (
-                                  <div
-                                    className={`gantt-block ${task.colorClass}`}
-                                    onMouseEnter={(e) => {
-                                      setHoveredTask(task);
-                                      handleMouseMove(e);
-                                    }}
-                                    onMouseMove={handleMouseMove}
-                                    onMouseLeave={() => setHoveredTask(null)}
-                                    onClick={() => {
-                                      // Go to the Monday of that week in day tab
-                                      setSelectedDate(monthWeeks[weekIndex].monday);
-                                      setCurrentTab("day");
-                                      showToast(`${monthWeeks[weekIndex].label} 상세 계획으로 이동했습니다.`);
-                                    }}
-                                  >
-                                    {task.product} ({task.workers[0] ?? "미배정"} 외 {Math.max(task.workers.length - 1, 0)}명)
-                                  </div>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    });
-                  })}
-                </tbody>
-              </table>
+                              const colSpan = task ? (task.endWeek - task.startWeek + 1) : 1;
+
+                              return (
+                                <td
+                                  key={weekIndex}
+                                  colSpan={colSpan}
+                                  className="gantt-cell-day"
+                                >
+                                  {task && (
+                                    <div
+                                      className={`gantt-block ${task.colorClass}`}
+                                      onMouseEnter={(e) => {
+                                        setHoveredTask(task);
+                                        handleMouseMove(e);
+                                      }}
+                                      onMouseMove={handleMouseMove}
+                                      onMouseLeave={() => setHoveredTask(null)}
+                                      onClick={() => {
+                                        // Go to the Monday of that week in day tab
+                                        setSelectedDate(monthWeeks[weekIndex].monday);
+                                        setCurrentTab("day");
+                                        showToast(`${monthWeeks[weekIndex].label} 상세 계획으로 이동했습니다.`);
+                                      }}
+                                    >
+                                      {task.taskName}
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      });
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         )}

@@ -394,7 +394,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </defs>
           </svg>
           <div className="logo-text-wrapper">
-            <span className="sidebar-logo-text">linea</span>
+            <span className="sidebar-logo-text">Linea</span>
             <span className="sidebar-logo-sub">SafeFactory System</span>
           </div>
         </div>

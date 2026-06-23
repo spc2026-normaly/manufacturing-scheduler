@@ -194,6 +194,61 @@ def get_calendar_schedules(
     ]
 
 
+@router.get("/schedules/summary", summary="공장별 일정 요약")
+def get_schedules_summary(
+    date_param: Optional[date] = Query(None, alias="date", description="기준일 (YYYY-MM-DD)"),
+    db: Session = Depends(get_db)
+):
+    base_date = date_param or date(2026, 7, 1)
+
+    first_day = base_date.replace(day=1)
+    first_monday = first_day - timedelta(days=first_day.weekday())
+
+    if first_day.month == 12:
+        next_first = first_day.replace(year=first_day.year + 1, month=1, day=1)
+    else:
+        next_first = first_day.replace(month=first_day.month + 1, day=1)
+    last_day = next_first - timedelta(days=1)
+    last_sunday = last_day + timedelta(days=6 - last_day.weekday())
+
+    start_dt = datetime.combine(first_monday, time.min)
+    end_dt = datetime.combine(last_sunday, time.max)
+
+    sql = """
+    SELECT s.factory, COUNT(DISTINCT s.id) as task_count
+    FROM schedules s
+    WHERE s.start_date <= :end_dt
+      AND s.end_date >= :start_dt
+    GROUP BY s.factory
+    """
+
+    rows = db.execute(
+        text(sql),
+        {
+            "start_dt": start_dt,
+            "end_dt": end_dt
+        }
+    ).mappings().all()
+
+    factories = {
+        "A공장동": 0, "B공장동": 0, "C공장동": 0, "D공장동": 0,
+        "E공장동": 0, "F공장동": 0, "G공장동": 0
+    }
+
+    total = 0
+    for row in rows:
+        fac = row["factory"]
+        count = row["task_count"]
+        fac_label = _to_factory_label(fac)
+        factories[fac_label] = count
+        total += count
+
+    return {
+        "total": total,
+        "factories": factories
+    }
+
+
 @router.get("/schedules", response_model=List[ScheduleResponse], summary="생산 일정 목록 조회")
 def get_schedules():
     """배정된 생산 일정 목록을 조회합니다. (API 스텁)"""

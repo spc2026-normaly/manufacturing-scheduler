@@ -3,7 +3,7 @@ import "./globals.css";
 import AppLayout from "./AppLayout";
 
 export const metadata: Metadata = {
-  title: "Manufacturing Scheduler",
+  title: "Linea",
   description: "생산 일정 관리 시스템 — 공정 계획, 자원 배분, 실시간 모니터링",
   keywords: ["manufacturing", "scheduler", "production", "ERP"],
 };

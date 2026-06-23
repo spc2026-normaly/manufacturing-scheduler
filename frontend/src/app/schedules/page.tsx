@@ -62,6 +62,20 @@ const getFacilityColorClass = (facility: string) => {
   }
 };
 
+const getRosterThemeClass = (facility: string) => {
+  const fac = facility.replace("공장동", "");
+  switch (fac) {
+    case "A": return "roster-a";
+    case "B": return "roster-b";
+    case "C": return "roster-c";
+    case "D": return "roster-d";
+    case "E": return "roster-e";
+    case "F": return "roster-f";
+    case "G": return "roster-g";
+    default: return "roster-d";
+  }
+};
+
 const toYmd = (date: Date) => {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, "0");
@@ -83,6 +97,8 @@ export default function SchedulesPage() {
   const [summary, setSummary] = useState<{ total: number; factories: Record<string, number> } | null>(null);
   const [ganttGroupBy, setGanttGroupBy] = useState<"facility" | "order">("facility");
   const [ordersList, setOrdersList] = useState<string[]>([]);
+  const [workerSearchFilter, setWorkerSearchFilter] = useState<string>("");
+  const [selectedWorker, setSelectedWorker] = useState<string | null>(null);
 
   // Date formatting helpers
   const getFormattedDate = (date: Date) => {
@@ -220,6 +236,53 @@ export default function SchedulesPage() {
 
     return tasks.filter((task) => task.startDate <= dayEnd && task.endDate >= dayStart);
   }, [selectedDate, tasks]);
+
+  // Extract all unique workers for the current week
+  const allWorkersThisWeek = useMemo(() => {
+    const workersSet = new Set<string>();
+    weekTasks.forEach((task) => {
+      task.workers.forEach((worker) => {
+        if (worker && worker.trim()) {
+          workersSet.add(worker.trim());
+        }
+      });
+    });
+    return Array.from(workersSet).sort();
+  }, [weekTasks]);
+
+  // Auto-select first worker when week changes or selected worker is not scheduled in the current week
+  useEffect(() => {
+    if (allWorkersThisWeek.length > 0) {
+      if (!selectedWorker || !allWorkersThisWeek.includes(selectedWorker)) {
+        setSelectedWorker(allWorkersThisWeek[0]);
+      }
+    } else {
+      setSelectedWorker(null);
+    }
+  }, [allWorkersThisWeek, selectedWorker]);
+
+  // Map the single selected worker to their 7-day schedule for the selected week
+  const selectedWorkerRoster = useMemo(() => {
+    if (!selectedWorker) return null;
+    return weeklyCalendarDays.map((day) => {
+      const dayStart = new Date(day.date);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(day.date);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const tasksOnDay = weekTasks.filter(
+        (task) =>
+          task.workers.includes(selectedWorker) &&
+          task.startDate <= dayEnd &&
+          task.endDate >= dayStart
+      );
+
+      return {
+        date: day.date,
+        tasks: tasksOnDay,
+      };
+    });
+  }, [selectedWorker, weeklyCalendarDays, weekTasks]);
 
   useEffect(() => {
     const fetchSchedules = async () => {
@@ -1004,6 +1067,327 @@ export default function SchedulesPage() {
         .day-body-facility { display: none; }
         .day-task-item { display: none; }
         .day-task-meta { display: none; }
+
+        /* Roster Table Styles */
+        .roster-header-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+        }
+        .roster-legend {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-bottom: 16px;
+          padding: 10px 14px;
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          font-size: 12px;
+          color: #475569;
+        }
+        .roster-legend-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .roster-legend-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          display: inline-block;
+        }
+        .roster-table-container {
+          overflow-x: auto;
+          background: white;
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .roster-table {
+          width: 100%;
+          border-collapse: collapse;
+          min-width: 1000px;
+          table-layout: fixed;
+        }
+        .roster-table th, .roster-table td {
+          border-bottom: 1px solid #e2e8f0;
+          padding: 12px 10px;
+          font-size: 13px;
+        }
+        .roster-table th {
+          background-color: #f8fafc;
+          font-weight: 700;
+          color: #475569;
+          text-align: center;
+          border-top: none;
+        }
+        .roster-table th.roster-worker-col {
+          width: 160px;
+          text-align: left;
+          padding-left: 16px;
+        }
+        .roster-table td.roster-worker-cell {
+          font-weight: 700;
+          color: #0f172a;
+          padding-left: 16px;
+          vertical-align: middle;
+          background-color: #f8fafc;
+          position: sticky;
+          left: 0;
+          z-index: 2;
+          border-right: 2px solid #e2e8f0;
+        }
+        .roster-worker-info {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .roster-worker-name {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 14px;
+        }
+        .roster-worker-avatar {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 26px;
+          height: 26px;
+          background-color: #e0f2fe;
+          color: #0369a1;
+          border-radius: 50%;
+          font-size: 11px;
+          font-weight: 700;
+        }
+        .roster-worker-count {
+          font-size: 11px;
+          font-weight: 500;
+          color: #64748b;
+        }
+        .roster-day-cell {
+          vertical-align: top;
+          height: 100%;
+          background-color: white;
+          text-align: center;
+        }
+        .roster-day-cell.selected-day {
+          background-color: #eff6ff;
+        }
+        .roster-empty-cell {
+          color: #cbd5e1;
+          font-weight: 400;
+          font-size: 16px;
+          padding: 8px 0;
+        }
+        .roster-task-badge-list {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          align-items: stretch;
+        }
+        .roster-task-badge {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          text-align: left;
+          padding: 6px 8px;
+          border-radius: 6px;
+          font-size: 11.5px;
+          font-weight: 600;
+          line-height: 1.3;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+          transition: all 0.15s ease-in-out;
+          border-left: 3px solid transparent;
+        }
+        .roster-task-badge:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 3px 6px rgba(0,0,0,0.08);
+          filter: brightness(0.97);
+        }
+        /* Factory Roster Themes */
+        .roster-a {
+          background-color: #f0fdf4;
+          color: #166534;
+          border: 1px solid #dcfce7;
+          border-left: 3px solid #16a34a;
+        }
+        .roster-b {
+          background-color: #eff6ff;
+          color: #1e40af;
+          border: 1px solid #dbeafe;
+          border-left: 3px solid #2563eb;
+        }
+        .roster-c {
+          background-color: #fff7ed;
+          color: #9a3412;
+          border: 1px solid #ffedd5;
+          border-left: 3px solid #ea580c;
+        }
+        .roster-d {
+          background-color: #faf5ff;
+          color: #6b21a8;
+          border: 1px solid #f3e8ff;
+          border-left: 3px solid #9333ea;
+        }
+        .roster-e {
+          background-color: #f0fdfa;
+          color: #115e59;
+          border: 1px solid #ccfbf1;
+          border-left: 3px solid #0d9488;
+        }
+        .roster-f {
+          background-color: #fdf2f8;
+          color: #9d174d;
+          border: 1px solid #fce7f3;
+          border-left: 3px solid #db2777;
+        }
+        .roster-g {
+          background-color: #eef2ff;
+          color: #3730a3;
+          border: 1px solid #e0e7ff;
+          border-left: 3px solid #4f46e5;
+        }
+        .roster-task-factory {
+          font-weight: 700;
+          font-size: 10px;
+          opacity: 0.85;
+          text-transform: uppercase;
+        }
+        .roster-task-name {
+          font-size: 11px;
+          margin-top: 1px;
+        }
+        .roster-task-product {
+          font-size: 9.5px;
+          opacity: 0.7;
+          font-weight: normal;
+          margin-top: 1px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 100%;
+        }
+
+        /* Roster Worker Badges inside Calendar Day Cell */
+        .roster-worker-badge-btn {
+          display: inline-block;
+          background-color: #f1f5f9;
+          color: #334155;
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          padding: 4px 8px;
+          font-size: 12.5px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          text-align: center;
+          width: calc(50% - 4px);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .roster-worker-badge-btn:hover {
+          background-color: #e2e8f0;
+          border-color: #94a3b8;
+          color: #0f172a;
+        }
+        .roster-worker-badge-btn.active {
+          background-color: #eff6ff;
+          border-color: #3b82f6;
+          color: #1d4ed8;
+          box-shadow: 0 0 0 1px #3b82f6;
+        }
+        .roster-workers-list-wrapper {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 8px;
+          overflow-y: auto;
+          max-height: 280px;
+          padding-right: 2px;
+        }
+
+        /* Bottom Selected Worker Schedule */
+        .individual-roster-section {
+          margin-top: 24px;
+          background-color: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          padding: 20px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .individual-roster-title {
+          font-size: 15px;
+          font-weight: 700;
+          color: #0f172a;
+          margin-bottom: 12px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .individual-roster-grid {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 12px;
+        }
+        .individual-roster-day {
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 12px;
+          background-color: #f8fafc;
+          min-height: 140px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .individual-roster-day.active-day {
+          background-color: #eff6ff;
+          border-color: #dbeafe;
+        }
+        .individual-day-header {
+          font-size: 12px;
+          font-weight: 700;
+          color: #475569;
+          border-bottom: 1px solid #e2e8f0;
+          padding-bottom: 4px;
+          margin-bottom: 4px;
+          display: flex;
+          justify-content: space-between;
+        }
+        .individual-day-header span.date-lbl {
+          font-weight: normal;
+          color: #94a3b8;
+        }
+        .individual-task-card {
+          padding: 8px;
+          border-radius: 6px;
+          font-size: 11.5px;
+          font-weight: 600;
+          border-left: 3px solid transparent;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        }
+        .individual-task-factory {
+          font-size: 10px;
+          font-weight: 700;
+          display: block;
+        }
+        .individual-task-name {
+          margin-top: 2px;
+          display: block;
+        }
+        .individual-task-product {
+          font-size: 9.5px;
+          font-weight: normal;
+          opacity: 0.8;
+          display: block;
+          margin-top: 1px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
       `}</style>
 
       {/* ── Header tab navigation ── */}
@@ -1340,101 +1724,153 @@ export default function SchedulesPage() {
           </div>
         )}
 
-        {/* ── 2) WEEK VIEW (CALENDAR GRID - SINGLE ROW) ── */}
+        {/* ── 2) WEEK VIEW (INTERACTIVE DOUBLE-LAYER ROSTER VIEW) ── */}
         {currentTab === "week" && (
-          <div className="month-grid-container">
-            {/* Calendar Left */}
-            <div>
-              <div className="gantt-title-row">
-                <span className="gantt-title">
-                  {selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월 {currentWeekIndexInMonth + 1}주차 주간 일정
-                </span>
-              </div>
-              
-              <div className="month-calendar-header">
-                {["월", "화", "수", "목", "금", "토", "일"].map((w, index) => (
-                  <span key={w} className={index === 5 ? "sat" : index === 6 ? "sun" : ""}>{w}</span>
-                ))}
-              </div>
-
-              <div className="month-days-grid" style={{ gridAutoRows: "420px" }}>
-                {weeklyCalendarDays.map((day, idx) => {
-                  const isSelected = day.date.toDateString() === selectedDate.toDateString();
-                  const isCurrentMonth = day.isCurrentMonth;
-                  const cellStart = new Date(day.date);
-                  cellStart.setHours(0, 0, 0, 0);
-                  const cellEnd = new Date(day.date);
-                  cellEnd.setHours(23, 59, 59, 999);
-
-                  const tasksOfDay = weekTasks.filter((task) => task.startDate <= cellEnd && task.endDate >= cellStart);
-                  const workersByFacility = new Map<string, Set<string>>();
-                  tasksOfDay.forEach((task) => {
-                    if (!workersByFacility.has(task.facility)) {
-                      workersByFacility.set(task.facility, new Set<string>());
-                    }
-                    task.workers.forEach((worker) => workersByFacility.get(task.facility)!.add(worker));
-                  });
-
-                  const dayBadges = Array.from(workersByFacility.entries())
-                    .slice(0, 8)
-                    .map(([facilityName, workers], index) => {
-                      const badgeClass = ["cell-badge-green", "cell-badge-blue", "cell-badge-orange"][index] ?? "cell-badge-purple";
-                      return {
-                        label: `${facilityName.replace("공장동", "공장")} ${workers.size}명`,
-                        class: badgeClass,
-                      };
-                    });
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`month-day-cell ${isSelected ? "selected" : ""} ${isCurrentMonth ? "" : "other-month"}`}
-                      onClick={() => setSelectedDate(day.date)}
-                    >
-                      <span className="month-day-num">{day.date.getDate()}</span>
-                      {dayBadges.map((badge, bIdx) => (
-                        <div key={bIdx} className={`month-cell-badge ${badge.class}`}>
-                          {badge.label}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Detail Panel Right */}
-            <div className="month-detail-panel animate-in">
-              <div className="month-panel-title">{getFormattedDate(selectedDate)} 배정 현황</div>
-              <div className="month-panel-subtitle">
-                총 {new Set(selectedDayTasks.flatMap((t) => t.workers).filter(Boolean)).size}명 배치
-              </div>
-              
-              <div className="month-detail-tasks-list">
-                {selectedDayTasks.length > 0 ? (
-                  selectedDayTasks.map((task, idx) => (
-                    <div key={idx} className="panel-task-item animate-in" style={{ animationDelay: `${idx * 0.05}s` }}>
-                      <div className="panel-task-meta">
-                        <span className="panel-task-role">{task.facility.substring(0, 4)}</span>
-                        <span className="panel-task-name">{task.product}</span>
-                      </div>
-                      <div className="panel-task-meta" style={{ marginTop: "4px", fontSize: "11px", color: "var(--text-muted)" }}>
-                        <span>장비: {task.equipment} ({task.taskName})</span>
-                      </div>
-                      <div className="panel-task-workers">
-                        {task.workers.map((w, wIdx) => (
-                          <span key={wIdx} className="panel-worker-pill">{w}</span>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="panel-no-tasks">
-                    <p>☕ 예정된 작업 일정이 없습니다.</p>
-                  </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {/* Roster Header and Search */}
+            <div className="roster-header-row animate-in" style={{ animationDelay: "0.02s" }}>
+              <span className="gantt-title">
+                주간 요일별 출근자 ({selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월 {currentWeekIndexInMonth + 1}주차)
+              </span>
+              <div className="gantt-filters">
+                <input
+                  type="text"
+                  className="gantt-select"
+                  style={{ minWidth: "220px" }}
+                  placeholder="작업자 이름 검색..."
+                  value={workerSearchFilter}
+                  onChange={(e) => setWorkerSearchFilter(e.target.value)}
+                />
+                {workerSearchFilter && (
+                  <button
+                    className="sched-btn"
+                    onClick={() => setWorkerSearchFilter("")}
+                    style={{ padding: "6px 10px" }}
+                  >
+                    초기화
+                  </button>
                 )}
               </div>
             </div>
+
+            {/* Top Section: Week Calendar Grid with Worker buttons */}
+            <div className="month-days-grid animate-in" style={{ gridAutoRows: "260px", animationDelay: "0.04s" }}>
+              {weeklyCalendarDays.map((day, idx) => {
+                const isSelected = day.date.toDateString() === selectedDate.toDateString();
+                const isCurrentMonth = day.isCurrentMonth;
+                const dayOfWeek = getDayName(day.date);
+                
+                const cellStart = new Date(day.date);
+                cellStart.setHours(0, 0, 0, 0);
+                const cellEnd = new Date(day.date);
+                cellEnd.setHours(23, 59, 59, 999);
+
+                const tasksOfDay = weekTasks.filter((task) => task.startDate <= cellEnd && task.endDate >= cellStart);
+                const workersOfDay = Array.from(new Set(tasksOfDay.flatMap((t) => t.workers).filter(Boolean))).sort();
+                
+                const filteredWorkersOfDay = workerSearchFilter.trim()
+                  ? workersOfDay.filter(w => w.toLowerCase().includes(workerSearchFilter.trim().toLowerCase()))
+                  : workersOfDay;
+
+                return (
+                  <div
+                    key={idx}
+                    className={`month-day-cell ${isSelected ? "selected" : ""} ${isCurrentMonth ? "" : "other-month"}`}
+                    onClick={() => setSelectedDate(day.date)}
+                    style={{ display: "flex", flexDirection: "column", padding: "10px", height: "260px", overflow: "hidden" }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span className="month-day-num" style={{ fontSize: "14px", fontWeight: "700" }}>{day.date.getDate()}</span>
+                      <span style={{ fontSize: "12px", color: isSelected ? "#2563eb" : "#64748b", fontWeight: "600" }}>{dayOfWeek}요일</span>
+                    </div>
+                    
+                    <div className="roster-workers-list-wrapper">
+                      {filteredWorkersOfDay.length > 0 ? (
+                        filteredWorkersOfDay.map((workerName, wIdx) => {
+                          const isActive = workerName === selectedWorker;
+                          return (
+                            <button
+                              key={wIdx}
+                              className={`roster-worker-badge-btn ${isActive ? "active" : ""}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedWorker(workerName);
+                              }}
+                              title={workerName}
+                            >
+                              {workerName}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <span style={{ fontSize: "11px", color: "#cbd5e1", marginTop: "16px", alignSelf: "center", width: "100%", textAlign: "center" }}>
+                          {workersOfDay.length > 0 ? "검색 결과 없음" : "출근자 없음"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Bottom Section: Clicked Worker's Detailed Week Timeline */}
+            {selectedWorker ? (
+              <div className="individual-roster-section animate-in" style={{ animationDelay: "0.06s" }}>
+                <div className="individual-roster-title">
+                  <span className="roster-worker-avatar" style={{ width: "30px", height: "30px", fontSize: "13px", display: "inline-flex" }}>
+                    {selectedWorker.substring(0, 1)}
+                  </span>
+                  <strong>{selectedWorker}</strong>님의 주간 상세 일정 (이번 주 총 {selectedWorkerRoster?.reduce((acc, d) => acc + d.tasks.length, 0) ?? 0}건 배정)
+                </div>
+                
+                <div className="individual-roster-grid">
+                  {selectedWorkerRoster?.map((dayInfo, idx) => {
+                    const isSelected = dayInfo.date.toDateString() === selectedDate.toDateString();
+                    const dateStr = `${dayInfo.date.getMonth() + 1}/${dayInfo.date.getDate()}`;
+                    const dayOfWeek = getDayName(dayInfo.date);
+                    const isSat = dayOfWeek === "토";
+                    const isSun = dayOfWeek === "일";
+
+                    return (
+                      <div 
+                        key={idx} 
+                        className={`individual-roster-day ${isSelected ? "active-day" : ""}`}
+                        onClick={() => setSelectedDate(dayInfo.date)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <div className="individual-day-header">
+                          <span className={`${isSat ? "sat" : isSun ? "sun" : ""}`} style={{ fontWeight: "700" }}>{dayOfWeek}요일</span>
+                          <span className="date-lbl">{dateStr}</span>
+                        </div>
+                        
+                        {dayInfo.tasks.length > 0 ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                            {dayInfo.tasks.map((task, tIdx) => {
+                              const themeClass = getRosterThemeClass(task.facility);
+                              return (
+                                <div key={tIdx} className={`individual-task-card roster-task-badge ${themeClass}`}>
+                                  <span className="individual-task-factory">{task.facility}</span>
+                                  <span className="individual-task-name">{task.taskName}</span>
+                                  <span className="individual-task-product">{task.product}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center", color: "#cbd5e1", fontSize: "14px" }}>
+                            -
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="individual-roster-section animate-in" style={{ animationDelay: "0.06s", textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
+                <p>💡 이번 주에는 일정이 잡힌 작업자가 없습니다.</p>
+              </div>
+            )}
           </div>
         )}
 

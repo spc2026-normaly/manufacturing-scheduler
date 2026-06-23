@@ -829,6 +829,16 @@ button {
   color: #5b21b6;
 }
 
+.calendar-staff-pill.pill-red {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.calendar-staff-pill.pill-gray {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
 /* Cartoon speech tooltip pointing to the date cell */
 .tooltip-bubble {
   position: absolute;

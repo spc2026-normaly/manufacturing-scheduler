@@ -90,6 +90,7 @@ export default function DashboardPage() {
   const [completionRate, setCompletionRate] = useState(86.7);
   const [upcomingCount, setUpcomingCount] = useState(12);
   const [upcomingList, setUpcomingList] = useState<Array<{ name: string; dday: string; urgent: boolean }>>([]);
+  const [equipments, setEquipments] = useState<any[]>([]);
 
   const getAuthHeaders = () => {
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -155,6 +156,17 @@ export default function DashboardPage() {
     })
     .sort((a, b) => compareByFacility(a.facility, b.facility));
 
+  const selectedDayChecks = equipments.filter((eq) => {
+    if (!eq.check_date) return false;
+    const checkDate = new Date(eq.check_date);
+    checkDate.setHours(0, 0, 0, 0);
+    
+    const selDate = new Date(selectedDate);
+    selDate.setHours(0, 0, 0, 0);
+    
+    return checkDate.getTime() === selDate.getTime();
+  });
+
   // Fetch API Health & Dashboard data
   useEffect(() => {
     const checkHealth = async () => {
@@ -190,14 +202,27 @@ export default function DashboardPage() {
           }
         }
 
-        // 3. Fetch equipments for upcoming inspections
-        const eqRes = await fetch("/api/equipments?upcoming_days=7", { headers });
+        // 3. Fetch all equipments
+        const eqRes = await fetch("/api/equipments", { headers });
         if (eqRes.ok) {
-          const eqData = await eqRes.json();
-          setUpcomingCount(eqData.length);
+          const allEquipments = await eqRes.json();
+          setEquipments(allEquipments);
           
-          const mapped = eqData.slice(0, 4).map((item: any) => {
-            const today = new Date();
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const deadline = new Date(today);
+          deadline.setDate(today.getDate() + 7);
+          deadline.setHours(23, 59, 59, 999);
+          
+          const upcomingEq = allEquipments.filter((item: any) => {
+            if (!item.check_date) return false;
+            const checkDate = new Date(item.check_date);
+            return checkDate >= today && checkDate <= deadline;
+          });
+          
+          setUpcomingCount(upcomingEq.length);
+          
+          const mapped = upcomingEq.slice(0, 4).map((item: any) => {
             const target = new Date(item.check_date);
             const diffTime = target.getTime() - today.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -399,7 +424,6 @@ export default function DashboardPage() {
               cellEnd.setHours(23, 59, 59, 999);
 
               const tasksOfDay = calendarTasks.filter((task) => task.startDate <= cellEnd && task.endDate >= cellStart);
-              const hasSchedule = tasksOfDay.length > 0;
               const isSelected = cell.date.toDateString() === selectedDate.toDateString();
               const now = new Date();
               const isToday =
@@ -407,24 +431,14 @@ export default function DashboardPage() {
                 cell.date.getMonth() === now.getMonth() &&
                 cell.date.getDate() === now.getDate();
 
-              const workersByFacility = new Map<string, Set<string>>();
-              tasksOfDay.forEach((task) => {
-                if (!workersByFacility.has(task.facility)) {
-                  workersByFacility.set(task.facility, new Set<string>());
-                }
-                task.workers.forEach((worker) => workersByFacility.get(task.facility)!.add(worker));
+              const checksOfDay = equipments.filter((eq) => {
+                if (!eq.check_date) return false;
+                const checkDate = new Date(eq.check_date);
+                checkDate.setHours(0, 0, 0, 0);
+                return checkDate.getTime() === cellStart.getTime();
               });
 
-              const dayBadges = Array.from(workersByFacility.entries())
-                .sort(([facilityA], [facilityB]) => compareByFacility(facilityA, facilityB))
-                .slice(0, 3)
-                .map(([facility, workers], idx) => {
-                  const colorClass = idx === 0 ? "pill-green" : idx === 1 ? "pill-blue" : "pill-orange";
-                  return {
-                    text: `${facility.replace("공장동", "공장")} ${workers.size}명`,
-                    colorClass,
-                  };
-                });
+              const hasSchedule = tasksOfDay.length > 0 || checksOfDay.length > 0;
 
               return (
                 <div
@@ -438,13 +452,18 @@ export default function DashboardPage() {
                   </div>
                   
                   {/* Staff Allocation Mini Pills */}
-                  {dayBadges.length > 0 && (
+                  {(tasksOfDay.length > 0 || checksOfDay.length > 0) && (
                     <div className="day-pills-list">
-                      {dayBadges.map((badge, idx) => (
-                        <div key={idx} className={`calendar-staff-pill ${badge.colorClass}`}>
-                          <span>{badge.text}</span>
+                      {tasksOfDay.length > 0 && (
+                        <div className="calendar-staff-pill pill-blue">
+                          <span>공정 {tasksOfDay.length}개</span>
                         </div>
-                      ))}
+                      )}
+                      {checksOfDay.length > 0 && (
+                        <div className="calendar-staff-pill pill-red">
+                          <span>🛠️ 점검 {checksOfDay.length}건</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -457,36 +476,75 @@ export default function DashboardPage() {
         <div className="card details-card">
           <div className="details-card-header">
             <h2 className="details-title">
-              {toYmd(selectedDate).replace(/-/g, ".")} 작업 세부내용
+              세부내용
             </h2>
             <button className="btn-detail-refresh" onClick={() => triggerToast("배정 현황 갱신 완료")}>🔄</button>
           </div>
           <div className="divider"></div>
 
           <div className="details-assignments-list">
-            {selectedDayTasks.length > 0 ? (
-              selectedDayTasks.map((task, idx) => (
-                <div key={`${task.id}-${idx}`} className="assignment-item animate-in" style={{ animationDelay: `${idx * 0.05}s` }}>
-                  <div className="assignment-meta">
-                    <span className="assignment-role-tag">{task.facility}</span>
-                    <span className="assignment-task-name">{task.product} ({task.taskName})</span>
-                  </div>
-                  <div className="assignment-workers">
-                    <span className="workers-label">작업자 이름:</span>
-                    <div className="workers-names-list">
-                      {task.workers.map((w, wIdx) => (
-                        <span key={wIdx} className="worker-name-pill">{w}</span>
-                      ))}
+            {/* 1. 생산 배정 일정 */}
+            <div style={{ marginBottom: "24px" }}>
+              <h3 style={{ fontSize: "13px", fontWeight: "700", color: "#475569", marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>🏭</span> 생산 배정 일정 ({selectedDayTasks.length}건)
+              </h3>
+              {selectedDayTasks.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {selectedDayTasks.map((task, idx) => (
+                    <div key={`${task.id}-${idx}`} className="assignment-item animate-in" style={{ animationDelay: `${idx * 0.05}s` }}>
+                      <div className="assignment-meta">
+                        <span className="assignment-role-tag">{task.facility}</span>
+                        <span className="assignment-task-name">{task.product} ({task.taskName})</span>
+                      </div>
+                      <div className="assignment-workers">
+                        <span className="workers-label">작업자 이름:</span>
+                        <div className="workers-names-list">
+                          {task.workers.map((w, wIdx) => (
+                            <span key={wIdx} className="worker-name-pill">{w}</span>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))
-            ) : (
-              <div className="no-assignments-placeholder">
-                <span className="placeholder-icon">🏖️</span>
-                <p>해당 일자에는 예정된 공정이 없습니다.</p>
-              </div>
-            )}
+              ) : (
+                <div className="no-assignments-placeholder" style={{ padding: "16px", minHeight: "60px", backgroundColor: "#f8fafc", borderRadius: "8px", border: "1px dashed #cbd5e1" }}>
+                  <p style={{ fontSize: "12px", color: "#94a3b8", textAlign: "center", margin: 0 }}>배정된 생산 공정이 없습니다.</p>
+                </div>
+              )}
+            </div>
+
+            {/* 2. 장비 점검 일정 */}
+            <div>
+              <h3 style={{ fontSize: "13px", fontWeight: "700", color: "#475569", marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>🛠️</span> 장비 점검 일정 ({selectedDayChecks.length}건)
+              </h3>
+              {selectedDayChecks.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {selectedDayChecks.map((eq, idx) => (
+                    <div key={`${eq.eq_id}-${idx}`} className="assignment-item animate-in" style={{ animationDelay: `${idx * 0.05}s`, borderLeft: "3px solid #ef4444" }}>
+                      <div className="assignment-meta" style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", marginBottom: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span className="assignment-role-tag" style={{ backgroundColor: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" }}>점검</span>
+                          <span className="assignment-task-name" style={{ fontWeight: 700 }}>{eq.eq_name}</span>
+                        </div>
+                        <span style={{ fontSize: "11px", color: eq.eq_status === "점검 필요" ? "#ef4444" : "#10b981", fontWeight: "700" }}>
+                          {eq.eq_status}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#64748b", marginTop: "6px", display: "flex", justifyContent: "space-between" }}>
+                        <span>점검 주기: {eq.check_cycle}일</span>
+                        <span>최근 점검일: {eq.recent_check_date}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="no-assignments-placeholder" style={{ padding: "16px", minHeight: "60px", backgroundColor: "#f8fafc", borderRadius: "8px", border: "1px dashed #cbd5e1" }}>
+                  <p style={{ fontSize: "12px", color: "#94a3b8", textAlign: "center", margin: 0 }}>예정된 장비 점검 일정이 없습니다.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

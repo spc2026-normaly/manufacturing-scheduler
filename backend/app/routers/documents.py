@@ -1,3 +1,4 @@
+from urllib.parse import quote
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from fastapi import (
@@ -74,10 +75,11 @@ def download_document(
 ):
     """R2에서 파일 다운로드 (바이너리 응답)"""
     doc, file_bytes = get_document_bytes(db=db, file_id=file_id)
+    encoded_filename = quote(doc.file_name)
     return Response(
         content=file_bytes,
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{doc.file_name}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"},
     )
 
 @router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT, summary="문서 삭제")

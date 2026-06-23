@@ -15,17 +15,50 @@ interface AIChatbotProps {
   initialMessages?: ChatMessage[];
 }
 
-// ── API call: POST /api/chatbot ────────────────────────────────────
+// ── API call: POST /api/chatbot 또는 /api/csv-edit ────────────────────
 async function fetchBotReply(message: string, file?: File): Promise<string> {
-  const formData = new FormData();
-  formData.append("message", message);
-  if (file) formData.append("file", file);
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
+  // CSV 파일이 첨부되면 /api/csv-edit, 없으면 /api/chatbot으로 요청
+  if (file) {
+    const formData = new FormData();
+    formData.append("message", message);
+    formData.append("file", file);
+
+    const res = await fetch("/api/csv-edit", {
+      method: "POST",
+      headers: {
+        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("❌ CSV Edit API 에러:", res.status, errText);
+      throw new Error(`서버 오류: ${res.status}`);
+    }
+
+    const data: { reply: string; source: string } = await res.json();
+    return data.reply;
+  }
+
+  // 텍스트만 입력한 경우 (RAG 기반 답변)
   const res = await fetch("/api/chatbot", {
     method: "POST",
-    body: formData,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ message }),
   });
-  if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("❌ 챗봇 API 에러:", res.status, errText);
+    throw new Error(`서버 오류: ${res.status}`);
+  }
+
   const data: { reply: string; source: string } = await res.json();
   return data.reply;
 }

@@ -119,17 +119,22 @@ async def chat_csv_edit(
                     continue
             if not decoded:
                 decoded = content.decode("cp949", errors="ignore")
-            file_content = f"\n\n[첨부 CSV: {file.filename}]\n{decoded[:3000]}"
+            # 전체 파일 내용을 전달 (3000자 제한 제거)
+            file_content = f"\n\n[첨부 CSV: {file.filename}]\n{decoded}"
 
     prompt = f"""사용자 요청: {message}
 {file_content}
 
 CSV 파일이 첨부되고 수정 요청이 있는 경우:
-1. 수정된 전체 CSV 데이터를 반환해주세요
+1. 수정된 전체 CSV 데이터를 반환해주세요 (모든 행 포함)
 2. 응답 형식:
 REPLY: (사용자에게 보여줄 메시지)
 CSV:
-(수정된 CSV 내용, 헤더 포함)
+(수정된 CSV 내용, 헤더 포함, 모든 행)
+3. CSV 생성 시 주의사항:
+   - 모든 행을 포함해야 함
+   - 따옴표(")는 필요한 경우만 사용 (쉼표나 줄바꿈이 있는 필드만)
+   - 원본 데이터 형식 유지
 
 CSV 수정 요청이 없는 일반 질문은 그냥 답변해주세요."""
 
@@ -148,10 +153,23 @@ CSV 수정 요청이 없는 일반 질문은 그냥 답변해주세요."""
 
         filename = f"modified_{uuid.uuid4().hex[:8]}.csv"
         filepath = os.path.join(UPLOAD_DIR, filename)
-        with open(filepath, "w", encoding="utf-8-sig") as f:
-            f.write(csv_data)
+        
+        # CSV를 제대로 파싱 후 다시 쓰기 (따옴표 정규화)
+        try:
+            # StringIO로 CSV 파싱
+            csv_reader = csv.reader(io.StringIO(csv_data))
+            csv_lines = list(csv_reader)
+            
+            # 다시 쓸 때 최소 quoting 사용 (필요한 경우만)
+            with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
+                csv_writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL, lineterminator="\n")
+                csv_writer.writerows(csv_lines)
+        except Exception as e:
+            # 파싱 실패 시 원본 그대로 사용
+            with open(filepath, "w", encoding="utf-8-sig") as f:
+                f.write(csv_data)
 
-        download_url = f"/api/chatbot/download/{filename}"
+        download_url = f"/api/download/{filename}"
         reply_text += f"\n\n📥 [수정된 파일 다운로드]({download_url})"
         return ChatResponse(reply=reply_text, source="gpt")
 

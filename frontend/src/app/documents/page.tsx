@@ -110,6 +110,32 @@ export default function DocumentsPage() {
   const handleStartSchedule = async () => {
     setScheduleStatus("running");
     setProgress(0);
+
+    try {
+      const res = await fetch("/api/schedule/generate-from-r2", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        setScheduleStatus("completed");
+        showToast(`✅ 일정 ${result.saved_count}개가 생성되었습니다!`);
+        console.log("생성된 일정:", result);
+      } else {
+        const errText = await res.text();
+        console.error("❌ 에러:", errText);
+        setScheduleStatus("failed");
+        showToast("일정 생성에 실패했습니다. 로그 확인!");
+      }
+    } catch (err) {
+      console.error("🔴 요청 에러:", err);
+      setScheduleStatus("failed");
+      showToast("서버 연결에 실패했습니다.");
+    }
   };
 
   // R2 Sync handler

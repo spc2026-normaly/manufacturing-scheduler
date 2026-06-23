@@ -2,13 +2,13 @@ import os
 import uuid
 import logging
 from urllib.parse import unquote
+from typing import List
 from fastapi import (
     APIRouter,
     UploadFile, File, Depends,
     HTTPException,
     Query,
     Response,
-    UploadFile,
     status,
 )
 from fastapi.responses import FileResponse
@@ -17,7 +17,7 @@ from sqlalchemy import select
 from app.database import get_db
 from app.models.document import Document
 from app.models.employee import Employee
-from app.routers.auth import require_leader
+from app.routers.auth import require_leader, get_current_employee
 from app.services.document_service import (
     DocumentCategory,
     get_document_bytes,
@@ -26,6 +26,10 @@ from app.services.document_service import (
 )
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
+logger = logging.getLogger(__name__)
+
+UPLOAD_DIR = "/app/uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 # 문서 조회 및 다운로드 엔드포인트
@@ -37,7 +41,7 @@ def get_documents(db: Session = Depends(get_db), _: object = Depends(require_lea
 
 @router.post("", summary="문서 업로드")
 async def upload_document(
-    file: UploadFile,
+    file: UploadFile = File(...),
     # category: RAG 임베딩용 또는 CSV 입력 데이터
     category: DocumentCategory = Query(default="rag"),
     db: Session = Depends(get_db),
@@ -50,6 +54,35 @@ async def upload_document(
         upload=file,
         category=category,
     )
+
+
+@router.post("/upload", summary="간단 문서 업로드")
+async def simple_upload_document(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_emp: Employee = Depends(require_leader)
+):
+    """로컬 저장소에 파일 업로드"""
+    ext = os.path.splitext(file.filename)[1]
+    unique_name = f"{uuid.uuid4().hex}{ext}"
+    file_path = os.path.join(UPLOAD_DIR, unique_name)
+
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    doc = Document(
+        uploader=current_emp.emp_id,
+        file_name=unquote(file.filename),
+        file_size=len(content),
+        file_extension=ext,
+        file_path=file_path,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    return {"file_id": doc.file_id, "file_name": doc.file_name, "file_size": doc.file_size}
 
 
 # R2 동기화 엔드포인트
@@ -94,10 +127,16 @@ def download_document(
     "/{file_id}", status_code=status.HTTP_204_NO_CONTENT, summary="문서 삭제"
 )
 def delete_document(
-    file_id: str, db: Session = Depends(get_db), current_emp: Employee = Depends(get_current_employee)
+    file_id: str, db: Session = Depends(get_db), current_emp: Employee = Depends(require_leader)
 ):
     """문서 메타데이터만 DB에서 삭제 (R2는 수동으로 삭제 필요)"""
     doc = db.query(Document).filter(Document.file_id == file_id, Document.uploader == current_emp.emp_id).first()
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다."
+        )
+    db.delete(doc)
+    db.commit()
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다."

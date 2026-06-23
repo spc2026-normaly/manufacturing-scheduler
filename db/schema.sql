@@ -9,6 +9,7 @@ DROP TABLE IF EXISTS document_chunks CASCADE;
 DROP TABLE IF EXISTS schedule_assignments CASCADE;
 DROP TABLE IF EXISTS untitled CASCADE;
 DROP TABLE IF EXISTS documents CASCADE;
+DROP TABLE IF EXISTS safety_training_metadata CASCADE;
 DROP TABLE IF EXISTS safety_training CASCADE;
 DROP TABLE IF EXISTS required_equipments CASCADE;
 DROP TABLE IF EXISTS equipments CASCADE;
@@ -88,6 +89,14 @@ CREATE TABLE safety_training (
     training_status VARCHAR(50) NOT NULL,
     CONSTRAINT PK_SAFETY_TRAINING PRIMARY KEY (training_id, emp_id),
     CONSTRAINT FK_employees_TO_safety_training FOREIGN KEY (emp_id) REFERENCES employees (emp_id) ON DELETE CASCADE
+);
+
+-- safety_training_metadata table (교육명 목록 저장)
+CREATE TABLE safety_training_metadata (
+    metadata_id VARCHAR(255) NOT NULL,
+    training_names JSON NOT NULL DEFAULT '[]'::json,
+    updated_at DATE NOT NULL DEFAULT CURRENT_DATE,
+    CONSTRAINT PK_SAFETY_TRAINING_METADATA PRIMARY KEY (metadata_id)
 );
 
 -- equipments table

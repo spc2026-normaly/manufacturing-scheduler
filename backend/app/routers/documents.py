@@ -59,15 +59,15 @@ def delete_document(file_id: str, db: Session = Depends(get_db), _: object = Dep
 @router.post("", summary="문서 업로드")
 async def upload_document(
     file: UploadFile = File(...),
-    # category: RAG 임베딩용 또는 CSV 입력 데이터
     category: DocumentCategory = Query(default="rag"),
     db: Session = Depends(get_db),
-    current_emp: Employee = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
+    current_claims = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
 ):
-    """파일 업로드 + R2 저장 + 벡터 임베딩 처리"""
+    from app.models.employee import Employee
+    emp = db.query(Employee).filter(Employee.login_id == current_claims.login_id).first()
     return await process_uploaded_document(
         db,
-        uploader=current_emp.emp_id,
+        uploader=emp.emp_id,
         upload=file,
         category=category,
     )

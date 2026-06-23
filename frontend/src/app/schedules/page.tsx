@@ -367,7 +367,7 @@ export default function SchedulesPage() {
           align-items: center;
           gap: 12px;
         }
-        .sched-btn {
+        .sched-btn, .sched-date-picker {
           background-color: white;
           border: 1px solid var(--border, #e2e8f0);
           padding: 6px 12px;
@@ -378,8 +378,13 @@ export default function SchedulesPage() {
           cursor: pointer;
           transition: all 0.2s;
         }
-        .sched-btn:hover {
+        .sched-btn:hover, .sched-date-picker:hover, .sched-date-picker:focus {
           background-color: #f8fafc;
+          border-color: #3b82f6;
+        }
+        .sched-date-picker {
+          outline: none;
+          font-family: inherit;
         }
 
         /* ── Content Card ── */
@@ -594,14 +599,15 @@ export default function SchedulesPage() {
         
         /* Mini stats badges inside monthly cells */
         .month-cell-badge {
-          font-size: 9px;
+          font-size: 10.5px;
           font-weight: 700;
-          padding: 2px 4px;
+          padding: 4px 6px;
           border-radius: 4px;
           text-align: center;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          margin-top: 2px;
         }
         .cell-badge-green { background-color: #e6f4ea; color: #137333; }
         .cell-badge-blue { background-color: #e8f0fe; color: #1a73e8; }
@@ -862,6 +868,17 @@ export default function SchedulesPage() {
         </div>
 
         <div className="sched-controls">
+          <input
+            type="date"
+            className="sched-date-picker"
+            value={toYmd(selectedDate)}
+            onChange={(e) => {
+              if (e.target.value) {
+                const [y, m, d] = e.target.value.split("-").map(Number);
+                setSelectedDate(new Date(y, m - 1, d));
+              }
+            }}
+          />
           {currentTab === "month" && (
             <>
               <button className="sched-btn" onClick={handlePrevMonth}>&lt; 이전달</button>
@@ -1016,7 +1033,7 @@ export default function SchedulesPage() {
                 ))}
               </div>
 
-              <div className="month-days-grid" style={{ gridAutoRows: "110px" }}>
+              <div className="month-days-grid" style={{ gridAutoRows: "420px" }}>
                 {weeklyCalendarDays.map((day, idx) => {
                   const isSelected = day.date.toDateString() === selectedDate.toDateString();
                   const isCurrentMonth = day.isCurrentMonth;
@@ -1035,7 +1052,7 @@ export default function SchedulesPage() {
                   });
 
                   const dayBadges = Array.from(workersByFacility.entries())
-                    .slice(0, 3)
+                    .slice(0, 8)
                     .map(([facilityName, workers], index) => {
                       const badgeClass = ["cell-badge-green", "cell-badge-blue", "cell-badge-orange"][index] ?? "cell-badge-purple";
                       return {

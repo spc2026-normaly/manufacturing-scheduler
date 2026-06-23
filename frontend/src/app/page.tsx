@@ -123,11 +123,26 @@ export default function DashboardPage() {
     const firstDay = new Date(year, month, 1);
     const start = startOfWeekMonday(firstDay);
 
-    return Array.from({ length: 42 }, (_, i) => {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      return { date: d, isCurrentMonth: d.getMonth() === month };
-    });
+    const days = [];
+    for (let w = 0; w < 6; w++) {
+      const weekStart = new Date(start);
+      weekStart.setDate(start.getDate() + w * 7);
+
+      // 이번 주 시작일(월요일)이 이미 다음 달로 넘어갔다면 주 생성 중단
+      if (w > 0 && weekStart.getMonth() !== month) {
+        break;
+      }
+
+      for (let d = 0; d < 7; d++) {
+        const dayDate = new Date(weekStart);
+        dayDate.setDate(weekStart.getDate() + d);
+        days.push({
+          date: dayDate,
+          isCurrentMonth: dayDate.getMonth() === month,
+        });
+      }
+    }
+    return days;
   })();
 
   const selectedDayTasks = calendarTasks

@@ -45,13 +45,17 @@ def _compute_range(view: str, base_date: date) -> tuple[datetime, datetime]:
 
     if view == "month":
         first_day = base_date.replace(day=1)
+        first_monday = first_day - timedelta(days=first_day.weekday())
+
         if first_day.month == 12:
             next_first = first_day.replace(year=first_day.year + 1, month=1, day=1)
         else:
             next_first = first_day.replace(month=first_day.month + 1, day=1)
         last_day = next_first - timedelta(days=1)
-        start_dt = datetime.combine(first_day, time.min)
-        end_dt = datetime.combine(last_day, time.max)
+        last_sunday = last_day + timedelta(days=6 - last_day.weekday())
+
+        start_dt = datetime.combine(first_monday, time.min)
+        end_dt = datetime.combine(last_sunday, time.max)
         return start_dt, end_dt
 
     raise HTTPException(status_code=400, detail="view는 month/week/day 중 하나여야 합니다.")

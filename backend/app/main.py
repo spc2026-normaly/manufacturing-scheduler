@@ -43,14 +43,16 @@ app.add_middleware(
 )
 
 # ─── 라우터 등록 ──────────────────────────────────────────────────────────────
+# 주의: 구체적인 라우터를 스텁(scheduler_router)보다 먼저 등록해야
+#       경로 충돌 시 실제 엔드포인트가 우선 매칭됩니다.
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(employees_router)
-app.include_router(scheduler_router)
 app.include_router(safety_training_router)
 app.include_router(equipment_router)
 app.include_router(documents_router)
 app.include_router(chatbot_router)
+app.include_router(scheduler_router)  # 스텁 라우터는 항상 마지막에 등록
 
 # Prometheus 메트릭 연동
 Instrumentator().instrument(app).expose(app)

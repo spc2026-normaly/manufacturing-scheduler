@@ -1,5 +1,6 @@
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import List, Optional
 
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -19,6 +20,44 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 8  # 8시간
 
 _bearer = HTTPBearer(auto_error=False)
+
+
+# ─── RBAC: Permission 상수 ────────────────────────────────────────────────────
+# 리소스:작업 형태로 권한을 표현합니다.
+class Permission:
+    EQUIPMENT_READ  = "equipment:read"
+    EQUIPMENT_WRITE = "equipment:write"
+    DOCUMENT_READ   = "document:read"
+    DOCUMENT_WRITE  = "document:write"
+    EMPLOYEE_READ   = "employee:read"
+    EMPLOYEE_WRITE  = "employee:write"
+    SAFETY_READ     = "safety:read"
+    SAFETY_WRITE    = "safety:write"
+
+
+# ─── RBAC: Role → Permission 매핑 ────────────────────────────────────────────
+# 역할별로 허용된 권한 집합을 정의합니다. 애플리케이션 메모리에서 관리합니다.
+ROLE_PERMISSIONS: dict[str, set[str]] = {
+    "leader": {
+        Permission.EQUIPMENT_READ, Permission.EQUIPMENT_WRITE,
+        Permission.DOCUMENT_READ,  Permission.DOCUMENT_WRITE,
+        Permission.EMPLOYEE_READ,  Permission.EMPLOYEE_WRITE,
+        Permission.SAFETY_READ,    Permission.SAFETY_WRITE,
+    },
+    "member": {
+        Permission.SAFETY_READ,
+        Permission.SAFETY_WRITE,
+    },
+}
+
+
+# ─── RBAC: JWT Claims 경량 데이터 ────────────────────────────────────────────
+@dataclass
+class TokenData:
+    """DB 조회 없이 JWT 토큰에서 추출한 사용자 식별 + 역할 정보."""
+    login_id: str
+    role: str
+    permissions: set[str] = field(default_factory=set)
 
 
 # ─── 비밀번호 검증 및 해싱 ─────────────────────────────────────────
@@ -94,16 +133,72 @@ def get_current_employee(
     return _decode_token_and_get_employee(token, db)
 
 
+# ─── RBAC: DB 조회 없는 Claim 기반 인증 ──────────────────────────────────────
+
+def get_current_user_claims(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
+) -> TokenData:
+    """
+    DB를 전혀 조회하지 않고 JWT 토큰만을 복호화하여 TokenData를 반환합니다.
+    역할(role)은 로그인 시 토큰에 내장되므로 DB 없이도 즉시 검증 가능합니다.
+    """
+    unauthorized = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="인증 토큰이 없거나 유효하지 않습니다.",
+    )
+    if not credentials:
+        raise unauthorized
+    try:
+        payload = jwt.decode(
+            credentials.credentials, settings.SECRET_KEY, algorithms=[ALGORITHM]
+        )
+        login_id: str = payload.get("sub")
+        role: str = payload.get("role")
+        if not login_id or not role:
+            raise unauthorized
+    except JWTError:
+        raise unauthorized
+
+    perms = ROLE_PERMISSIONS.get(role, set())
+    return TokenData(login_id=login_id, role=role, permissions=perms)
+
+
+def PermissionChecker(*required_permissions: str):
+    """
+    필요한 권한(Permission 상수)을 인자로 받아 FastAPI Dependency를 반환하는 팩토리 함수.
+
+    사용 예시:
+        Depends(PermissionChecker(Permission.EQUIPMENT_READ))
+        Depends(PermissionChecker(Permission.EMPLOYEE_WRITE))
+    """
+    def _check(claims: TokenData = Depends(get_current_user_claims)) -> TokenData:
+        missing = set(required_permissions) - claims.permissions
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"접근 권한이 없습니다. "
+                    f"현재 역할: '{claims.role}' | "
+                    f"필요 권한: {sorted(required_permissions)}"
+                ),
+            )
+        return claims
+    return _check
+
+
 def require_leader(
-    current_emp: Employee = Depends(get_current_employee),
-) -> Employee:
-    """현재 사용자가 leader 역할인지 확인합니다. leader가 아니면 403 Forbidden을 반환합니다."""
-    if current_emp.emp_role != "leader":
+    claims: TokenData = Depends(get_current_user_claims),
+) -> TokenData:
+    """
+    [하위 호환] leader 역할 전용 접근 제어.
+    내부적으로 PermissionChecker를 사용하지 않고 claims만으로 역할을 검증합니다.
+    """
+    if claims.role != "leader":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="접근 권한이 없습니다. 리더(leader) 역할만 이 기능을 사용할 수 있습니다.",
         )
-    return current_emp
+    return claims
 
 
 # ─── 엔드포인트 ──────────────────────────────────────────────────────────────

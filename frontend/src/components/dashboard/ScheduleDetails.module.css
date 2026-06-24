@@ -1,0 +1,99 @@
+.detailsCard {
+  background-color: var(--card-bg, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+.detailsCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.detailsTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main, #0f172a);
+}
+.btnDetailRefresh {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+}
+.divider {
+  height: 1px;
+  background-color: var(--border, #e2e8f0);
+  margin: 16px 0;
+}
+.detailsAssignmentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.assignmentItem {
+  background-color: var(--bg-main, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-left: 3px solid #3b82f6;
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.assignmentMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.assignmentRoleTag {
+  background-color: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.assignmentTaskName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main, #1e293b);
+}
+.assignmentWorkers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.workersLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted, #64748b);
+}
+.workersNamesList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.workerNamePill {
+  background-color: white;
+  border: 1px solid var(--border, #e2e8f0);
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-main, #334155);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+.noAssignmentsPlaceholder {
+  padding: 16px;
+  min-height: 60px;
+  background-color: #f8fafc;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}

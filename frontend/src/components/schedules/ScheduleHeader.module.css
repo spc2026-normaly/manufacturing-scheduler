@@ -1,0 +1,52 @@
+.schedHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.schedTabs {
+  display: flex;
+  background-color: #f1f5f9;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #cbd5e1);
+}
+.schedTab {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.schedTab.active {
+  background-color: white;
+  color: var(--text-main, #0f172a);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.schedControls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.schedBtn, .schedDatePicker {
+  background-color: white;
+  border: 1px solid var(--border, #e2e8f0);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main, #334155);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.schedBtn:hover, .schedDatePicker:hover, .schedDatePicker:focus {
+  background-color: #f8fafc;
+  border-color: #3b82f6;
+}
+.schedDatePicker {
+  outline: none;
+  font-family: inherit;
+}

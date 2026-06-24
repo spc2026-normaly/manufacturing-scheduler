@@ -1,0 +1,149 @@
+.individualRosterSection {
+  margin-top: 24px;
+  background-color: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.individualRosterTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rosterWorkerAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background-color: #e0f2fe;
+  color: #0369a1;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+}
+.individualRosterGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
+}
+.individualRosterDay {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background-color: #f8fafc;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.individualRosterDay.activeDay {
+  background-color: #eff6ff;
+  border-color: #dbeafe;
+}
+.individualDayHeader {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+}
+.individualDayHeader span.dateLbl {
+  font-weight: normal;
+  color: #94a3b8;
+}
+.individualDayHeader span.sat { color: #2563eb; }
+.individualDayHeader span.sun { color: #dc2626; }
+
+.individualTaskCard {
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-left: 3px solid transparent;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  line-height: 1.3;
+  transition: all 0.15s ease-in-out;
+}
+.individualTaskCard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(0,0,0,0.08);
+  filter: brightness(0.97);
+}
+
+/* Factory Roster Themes */
+.rosterA {
+  background-color: #f0fdf4;
+  color: #166534;
+  border: 1px solid #dcfce7;
+  border-left: 3px solid #16a34a;
+}
+.rosterB {
+  background-color: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #dbeafe;
+  border-left: 3px solid #2563eb;
+}
+.rosterC {
+  background-color: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #ffedd5;
+  border-left: 3px solid #ea580c;
+}
+.rosterD {
+  background-color: #faf5ff;
+  color: #6b21a8;
+  border: 1px solid #f3e8ff;
+  border-left: 3px solid #9333ea;
+}
+.rosterE {
+  background-color: #f0fdfa;
+  color: #115e59;
+  border: 1px solid #ccfbf1;
+  border-left: 3px solid #0d9488;
+}
+.rosterF {
+  background-color: #fdf2f8;
+  color: #9d174d;
+  border: 1px solid #fce7f3;
+  border-left: 3px solid #db2777;
+}
+.rosterG {
+  background-color: #eef2ff;
+  color: #3730a3;
+  border: 1px solid #e0e7ff;
+  border-left: 3px solid #4f46e5;
+}
+
+.individualTaskFactory {
+  font-weight: 700;
+  font-size: 10px;
+  opacity: 0.85;
+  text-transform: uppercase;
+}
+.individualTaskName {
+  font-size: 11px;
+  margin-top: 1px;
+}
+.individualTaskProduct {
+  font-size: 9.5px;
+  opacity: 0.7;
+  font-weight: normal;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}

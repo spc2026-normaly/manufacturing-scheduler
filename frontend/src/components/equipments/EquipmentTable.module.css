@@ -1,0 +1,66 @@
+.eqTableCard {
+  background-color: var(--card-bg, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  overflow: hidden;
+}
+.eqTableTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main, #0f172a);
+  padding: 20px 24px 12px;
+}
+.eqTableWrapper {
+  overflow-x: auto;
+  width: 100%;
+}
+.eqTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.eqTable th {
+  background-color: #f8fafc;
+  padding: 14px 24px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted, #475569);
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  white-space: nowrap;
+}
+.eqTable td {
+  padding: 14px 24px;
+  font-size: 14px;
+  color: var(--text-main, #334155);
+  border-bottom: 1px solid var(--border, #f1f5f9);
+  vertical-align: middle;
+}
+.eqRow:hover {
+  background-color: #f8fafc;
+}
+.eqCellName {
+  font-weight: 600;
+  color: var(--text-main, #0f172a);
+}
+
+/* ── Badge Pill Styles ── */
+.eqBadge {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  border: 1px solid transparent;
+}
+.badgeGray {
+  background-color: #f1f3f4;
+  color: #5f6368;
+  border-color: #dadce0;
+}
+.badgeYellow {
+  background-color: #fef7e0;
+  color: #b06000;
+  border-color: #feebc8;
+}

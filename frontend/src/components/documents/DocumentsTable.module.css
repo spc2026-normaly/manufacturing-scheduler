@@ -1,0 +1,51 @@
+.docTableCard {
+  background-color: var(--card-bg, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  overflow: hidden;
+}
+.docTableWrapper {
+  overflow-x: auto;
+}
+.docTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.docTable th {
+  background-color: #f8fafc;
+  padding: 14px 24px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted, #475569);
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+.docTable td {
+  padding: 14px 24px;
+  font-size: 14px;
+  color: var(--text-main, #334155);
+  border-bottom: 1px solid var(--border, #f1f5f9);
+}
+.docRow:hover {
+  background-color: #f8fafc;
+}
+.docTableActions {
+  display: flex;
+  gap: 12px;
+}
+.docIconBtn {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  font-size: 14px;
+  cursor: pointer;
+}
+.docIconBtn.delete {
+  color: #ef4444;
+}
+.docEmptyCell {
+  text-align: center;
+  padding: 40px !important;
+  color: var(--text-muted, #64748b);
+}

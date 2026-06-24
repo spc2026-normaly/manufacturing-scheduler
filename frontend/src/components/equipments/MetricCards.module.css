@@ -1,0 +1,41 @@
+.eqMetricsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.eqMetricCard {
+  background-color: var(--card-bg, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 140px;
+}
+.eqMetricTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main, #334155);
+}
+.eqMetricValueWrapper {
+  align-self: center;
+  margin-top: 12px;
+}
+.eqMetricPrefix {
+  font-size: 14px;
+  color: var(--text-muted, #64748b);
+  margin-right: 6px;
+}
+.eqMetricValue {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--text-main, #0f172a);
+}
+.eqMetricUnit {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-main, #334155);
+  margin-left: 4px;
+}

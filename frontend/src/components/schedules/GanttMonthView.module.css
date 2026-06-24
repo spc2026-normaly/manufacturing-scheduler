@@ -1,0 +1,128 @@
+.ganttTitleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.ganttTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main, #0f172a);
+}
+.ganttFilters {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.ganttSelect {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #cbd5e1);
+  font-size: 13px;
+  background-color: white;
+  color: var(--text-main);
+  outline: none;
+}
+.ganttWrapper {
+  overflow-x: auto;
+  width: 100%;
+  padding-top: 12px;
+}
+.ganttTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+.ganttTable th, .ganttTable td {
+  border: 1px solid #e2e8f0;
+  padding: 10px;
+  vertical-align: middle;
+}
+.ganttTable th {
+  background-color: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #475569);
+  text-align: center;
+  padding-top: 16px;
+  padding-bottom: 10px;
+  height: 52px;
+}
+.ganttHeaderDay {
+  width: 13.5%;
+}
+.ganttColFacility {
+  width: 12%;
+  font-weight: 700;
+  color: #1e3a8a;
+  background-color: #f8fafc;
+  text-align: center;
+}
+.ganttColTask {
+  width: 10%;
+  font-weight: 600;
+  font-size: 13px;
+}
+.ganttColEq {
+  width: 12%;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.ganttCellDay {
+  position: relative;
+  padding: 0;
+  height: 48px;
+}
+.currentWeekHeader {
+  background-color: #eff6ff !important;
+  border-bottom: 2px solid #2563eb !important;
+}
+.currentWeekBadge {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #2563eb;
+  color: white;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 20px;
+  box-shadow: 0 2px 4px rgba(37,99,235,0.2);
+  white-space: nowrap;
+}
+.ganttBlock {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 6px;
+  right: -6px;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+  z-index: 5;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: transform 0.1s;
+}
+.ganttBlock:hover {
+  transform: scaleY(1.04);
+}
+.barBlue { background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+.barGreen { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.barPurple { background-color: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
+.barPink { background-color: #fce7f3; color: #9d174d; border: 1px solid #fbcfe8; }
+.barOrange { background-color: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
+.barTeal { background-color: #ccfbf1; color: #0f766e; border: 1px solid #99f6e4; }
+.barIndigo { background-color: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; }
+
+.eqRow:hover {
+  background-color: #f8fafc;
+}

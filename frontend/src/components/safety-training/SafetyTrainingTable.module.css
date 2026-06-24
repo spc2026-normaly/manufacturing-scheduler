@@ -1,0 +1,121 @@
+.stCard {
+  background-color: var(--card-bg, #ffffff);
+  border-radius: 12px;
+  border: 1px solid var(--border, #e2e8f0);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  overflow: hidden;
+}
+.stTableTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main, #1e293b);
+  padding: 20px 24px 12px;
+}
+.stTableWrapper {
+  overflow-x: auto;
+  width: 100%;
+}
+.stTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.stTable th {
+  background-color: #f8fafc;
+  padding: 12px 24px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted, #475569);
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  white-space: nowrap;
+}
+.stTable td {
+  padding: 14px 24px;
+  font-size: 14px;
+  color: var(--text-main, #334155);
+  border-bottom: 1px solid var(--border, #f1f5f9);
+  vertical-align: middle;
+}
+.stRow:hover {
+  background-color: #f8fafc;
+}
+.stCellName {
+  font-weight: 600;
+  color: var(--text-main, #0f172a);
+}
+.stCellId {
+  color: var(--text-muted, #64748b);
+  font-family: monospace;
+}
+
+/* ── Badge Pill Styles ── */
+.stBadge {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 110px;
+  text-align: center;
+  line-height: 1.3;
+  border: 1px solid transparent;
+}
+.stBadge .badgeTitle {
+  font-size: 11px;
+  font-weight: 700;
+}
+.stBadge .badgeDate {
+  font-size: 10px;
+  font-weight: 400;
+  margin-top: 1px;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+.stBadge .badgeDday {
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+.stBadge .badgeDday.textAlert {
+  color: #ef4444;
+}
+
+/* Badge themes */
+.badgeGreen {
+  background-color: #e6f4ea;
+  color: #137333;
+  border-color: #ceead6;
+}
+.badgeYellow {
+  background-color: #fef7e0;
+  color: #b06000;
+  border-color: #feebc8;
+}
+.badgeRed {
+  background-color: #fce8e6;
+  color: #c5221f;
+  border-color: #fad2cf;
+}
+.badgeGray {
+  background-color: #f1f3f4;
+  color: #5f6368;
+  border-color: #dadce0;
+}
+.badgeNone {
+  background-color: #fafafa;
+  color: #94a3b8;
+  border-color: #f1f5f9;
+}
+.badgeNone .badgeDate {
+  opacity: 0.5;
+}
+
+.stEmptyCell {
+  text-align: center;
+  padding: 40px !important;
+  color: var(--text-muted, #64748b);
+  font-size: 14px;
+}

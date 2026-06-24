@@ -1,0 +1,18 @@
+.eqContainer {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Top Dashboard Section ── */
+.eqTopGrid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+}
+@media (max-width: 1024px) {
+  .eqTopGrid {
+    grid-template-columns: 1fr;
+  }
+}

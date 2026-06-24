@@ -186,11 +186,11 @@ def get_calendar_schedules(
     FROM schedules s
     JOIN task t ON t.task_id = s.task_id
     JOIN orders o ON o.order_id = s.order_id
-    JOIN schedule_assignments sa
+    LEFT JOIN schedule_assignments sa
       ON sa.id = s.id
      AND sa.task_id = s.task_id
      AND sa.order_id = s.order_id
-    JOIN employees emp ON emp.emp_id = sa.user_id
+    LEFT JOIN employees emp ON emp.emp_id = sa.user_id
     LEFT JOIN required_equipments re ON re.task_id = s.task_id
     LEFT JOIN equipments e ON e.eq_id = re.eq_id
     WHERE s.start_date <= :end_dt

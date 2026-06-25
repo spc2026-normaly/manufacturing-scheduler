@@ -144,8 +144,8 @@ export default function SafetyTrainingPage() {
   const renderBadge = (training: TrainingStatus) => {
     switch (training.state) {
       case "completed": return <div className="st-badge badge-green"><span className="badge-title">완료</span><span className="badge-date">{training.date}</span><span className="badge-dday">({training.dday})</span></div>;
-      case "warning_mid": return <div className="st-badge badge-yellow"><span className="badge-title">7~30일</span><span className="badge-date">{training.date}</span><span className="badge-dday">({training.dday})</span></div>;
-      case "warning_high": return <div className="st-badge badge-red"><span className="badge-title">7일 이하</span><span className="badge-date">{training.date}</span><span className="badge-dday">({training.dday})</span></div>;
+      case "warning_mid": return <div className="st-badge badge-yellow"><span className="badge-title">완료</span><span className="badge-date">{training.date}</span><span className="badge-dday">({training.dday})</span></div>;
+      case "warning_high": return <div className="st-badge badge-red"><span className="badge-title">완료(곧 만료)</span><span className="badge-date">{training.date}</span><span className="badge-dday">({training.dday})</span></div>;
       case "expired": return <div className="st-badge badge-gray"><span className="badge-title">만료</span><span className="badge-date">{training.date}</span><span className="badge-dday text-alert">({training.dday})</span></div>;
       default: return <div className="st-badge badge-none"><span className="badge-title">미완료</span><span className="badge-date">-</span></div>;
     }

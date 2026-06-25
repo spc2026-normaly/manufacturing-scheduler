@@ -86,6 +86,7 @@ services:
     image: grafana/grafana:11.0.0
     container_name: ms_grafana
     restart: unless-stopped
+    env_file: .env
     ports:
       - "3000:3000"
     environment:

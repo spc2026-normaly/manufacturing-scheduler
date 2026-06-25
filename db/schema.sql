@@ -5,6 +5,8 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- 1. Clean up existing tables (with CASCADE to handle dependencies)
+DROP TABLE IF EXISTS chatbot_logs CASCADE;
+DROP TABLE IF EXISTS chat_sessions CASCADE;
 DROP TABLE IF EXISTS document_chunks CASCADE;
 DROP TABLE IF EXISTS schedule_assignments CASCADE;
 DROP TABLE IF EXISTS untitled CASCADE;
@@ -154,6 +156,29 @@ CREATE TABLE document_chunks (
 -- HNSW cosine distance index for vector similarity search
 CREATE INDEX IF NOT EXISTS document_chunks_embedding_cosine_idx 
 ON document_chunks USING hnsw (embedding vector_cosine_ops);
+
+-- chat_sessions table
+CREATE TABLE chat_sessions (
+    session_id VARCHAR(255) NOT NULL,
+    employee_id VARCHAR(255) NULL,
+    title VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_activity TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_CHAT_SESSIONS PRIMARY KEY (session_id),
+    CONSTRAINT FK_employees_TO_chat_sessions FOREIGN KEY (employee_id) REFERENCES employees (emp_id) ON DELETE SET NULL
+);
+
+-- chatbot_logs table
+CREATE TABLE chatbot_logs (
+    log_id VARCHAR(255) NOT NULL,
+    session_id VARCHAR(255) NOT NULL,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    source VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_CHATBOT_LOGS PRIMARY KEY (log_id),
+    CONSTRAINT FK_chat_sessions_TO_chatbot_logs FOREIGN KEY (session_id) REFERENCES chat_sessions (session_id) ON DELETE CASCADE
+);
 
 -- 3. Comments for documentation and code clarity
 COMMENT ON COLUMN equipments.eq_status IS '장비 상태 (정상, 점검 필요 등)';

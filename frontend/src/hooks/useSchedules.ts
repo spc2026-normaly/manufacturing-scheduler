@@ -197,19 +197,28 @@ export function useSchedules() {
       const dayEnd = new Date(day.date);
       dayEnd.setHours(23, 59, 59, 999);
 
-      const tasksOnDay = weekTasks.filter(
-        (task) =>
-          task.workers.includes(selectedWorker) &&
-          task.startDate <= dayEnd &&
-          task.endDate >= dayStart
+      const dayOfWeek = day.date.getDay(); // 0 = Sunday, 6 = Saturday
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      // Weekend is active only if there is at least one task starting or ending on that day of week
+      const isActiveWorkday = !isWeekend || tasks.some(
+        (t) => t.startDate.getDay() === dayOfWeek || t.endDate.getDay() === dayOfWeek
       );
+
+      const tasksOnDay = isActiveWorkday
+        ? weekTasks.filter(
+            (task) =>
+              task.workers.includes(selectedWorker) &&
+              task.startDate <= dayEnd &&
+              task.endDate >= dayStart
+          )
+        : [];
 
       return {
         date: day.date,
         tasks: tasksOnDay,
       };
     });
-  }, [selectedWorker, weeklyCalendarDays, weekTasks]);
+  }, [selectedWorker, weeklyCalendarDays, weekTasks, tasks]);
 
   const loadSchedules = async () => {
     try {

@@ -61,13 +61,22 @@ export function WeeklyCalendarView({
           const isSelected = day.date.toDateString() === selectedDate.toDateString();
           const isCurrentMonth = day.isCurrentMonth;
           const dayOfWeek = getDayName(day.date);
+          const dayOfWeekNum = day.date.getDay(); // 0 = Sunday, 6 = Saturday
+          const isWeekend = dayOfWeekNum === 0 || dayOfWeekNum === 6;
           
           const cellStart = new Date(day.date);
           cellStart.setHours(0, 0, 0, 0);
           const cellEnd = new Date(day.date);
           cellEnd.setHours(23, 59, 59, 999);
 
-          const tasksOfDay = weekTasks.filter((task) => task.startDate <= cellEnd && task.endDate >= cellStart);
+          // Weekend is active only if there is at least one task starting or ending on that day of week
+          const isActiveWorkday = !isWeekend || weekTasks.some(
+            (t) => t.startDate.getDay() === dayOfWeekNum || t.endDate.getDay() === dayOfWeekNum
+          );
+
+          const tasksOfDay = isActiveWorkday
+            ? weekTasks.filter((task) => task.startDate <= cellEnd && task.endDate >= cellStart)
+            : [];
           const workersOfDay = Array.from(new Set(tasksOfDay.flatMap((t) => t.workers).filter(Boolean))).sort();
           
           const filteredWorkersOfDay = workerSearchFilter.trim()

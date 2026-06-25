@@ -8,10 +8,12 @@ from app.services.schedule_pipeline.rag import search_safety_rules
 
 def get_qualified_workers(db: Session, training_df: pd.DataFrame) -> Dict[str, List[str]]:
     """
-    Queries safety regulations from RAG, passes them along with employee
-    training data to GPT, and obtains a dictionary mapping factory units
-    (e.g., A동, B동...) to eligible employee IDs.
+    Queries safety regulations from RAG, extracts the required safety training codes using GPT,
+    and then performs deterministic qualification matching on employee training data in Python.
     """
+    import re
+    from datetime import date
+    
     # 1. Query RAG safety regulations for each factory unit
     rag_context_list = []
     factories = ["A동", "B동", "C동", "D동", "E동", "F동", "G동"]
@@ -20,70 +22,193 @@ def get_qualified_workers(db: Session, training_df: pd.DataFrame) -> Dict[str, L
         rag_context_list.append(f"[{factory} 안전 규정]\n" + "\n".join(rules))
     rag_context = "\n\n".join(rag_context_list)
     
-    # 2. Format employee training records
-    # Keep only relevant columns to save tokens
-    relevant_cols = [c for c in training_df.columns if "이수일" in c or "만료일" in c or c in ("사원ID", "이름")]
-    subset_df = training_df[relevant_cols].copy()
-    
-    # Convert training data to CSV-like text
-    training_data_text = subset_df.to_csv(index=False)
-    
-    # 3. Build GPT Prompt
-    prompt = f"""다음은 반도체 제조 시설의 공장동별 안전 규정(RAG 검색)과 직원들의 안전 교육 이수 현황입니다.
-각 공장동에 배치 가능한 '사원ID' 목록을 판정하여 JSON 형식으로 출력해주세요.
+    # 2. Extract factory requirements mapping using GPT
+    factory_reqs = {}
+    extracted = False
+    if settings.OPENAI_API_KEY:
+        try:
+            prompt = f"""다음은 반도체 제조 시설의 공장동별 필수 안전교육 규정입니다.
+각 공장동별로 요구되는 필수 교육 번호 목록(예: 교육01, 교육02 등)을 JSON 형식으로 추출해 주세요.
 
 [공장동별 안전 규정 (RAG)]
 {rag_context}
 
-[직원 안전교육 이수 현황]
-{training_data_text}
-
-[판정 규칙]
-1. 직원이 특정 공장동(A동~G동)에 배치되기 위해서는 해당 공장동의 필수 교육을 모두 이수해야 하며, 유효기간(만료일)이 경과하지 않아야 합니다. (기준일: 2026-07-01)
-2. 만약 어떤 필수 교육이 '직원 안전교육 이수 현황' 테이블에 전혀 존재하지 않거나 데이터가 비어 있는 경우(예: 교육06~교육17 등), 해당 교육은 미이수로 보지 않고 판정에서 제외(통과)해주세요.
-3. 데이터가 존재하는 교육(교육1~교육5, 교육18~교육21)은 반드시 이수 여부 및 만료일을 엄격하게 체크해야 합니다. 만료일이 2026-07-01 이전이면 배치 불가능합니다.
-4. 출력 형식은 정확한 JSON이어야 하며, 공장동 이름을 키로 하고 배치 가능한 사원ID 목록을 값으로 해야 합니다. 다른 설명 텍스트는 일체 포함하지 마세요.
-
-예시 출력:
-{{
-  "A동": ["emp001", "emp002", "emp003"],
-  "B동": ["emp006", "emp007"],
-  ...
-}}
+출력 형식은 정확한 JSON이어야 하며, 공장동 이름을 키로 하고 필수 교육 번호 목록(예: ["교육01", "교육02", ...])을 값으로 해야 합니다. 다른 설명이나 텍스트는 일체 포함하지 마세요.
 """
-    
-    # 4. Call OpenAI API
-    if not settings.OPENAI_API_KEY:
-        raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다.")
-        
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
-    response = client.chat.completions.create(
-        model=settings.OPENAI_CHAT_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-        response_format={"type": "json_object"}
-    )
-    
-    result_text = response.choices[0].message.content.strip()
-    try:
-        qualified_map = json.loads(result_text)
-        # Normalize keys/values to lowercase and strip whitespace
-        normalized_map = {}
-        for k, v in qualified_map.items():
-            factory_key = k.strip()
-            # Ensure employee IDs are cleaned and lowercase
-            emp_ids = [str(emp).lower().strip() for emp in v]
-            normalized_map[factory_key] = emp_ids
-        return normalized_map
-    except Exception as e:
-        print(f"❌ Failed to parse GPT qualified workers JSON: {str(e)}")
-        # Fallback to hardcoded safe defaults if GPT fails
-        return {
-            "A동": ["emp001", "emp002", "emp003", "emp004", "emp005"],
-            "B동": ["emp006", "emp007", "emp008", "emp009", "emp010", "emp040"],
-            "C동": ["emp011", "emp012", "emp013", "emp014", "emp015", "emp038", "emp039"],
-            "D동": ["emp015", "emp016", "emp017", "emp018", "emp019", "emp020", "emp038", "emp039"],
-            "E동": ["emp005", "emp021", "emp022", "emp023", "emp024", "emp025", "emp040"],
-            "F동": ["emp020", "emp026", "emp027", "emp028", "emp029", "emp030", "emp036", "emp037"],
-            "G동": ["emp010", "emp025", "emp030", "emp031", "emp032", "emp033", "emp034", "emp035", "emp036", "emp037"]
+            client = OpenAI(api_key=settings.OPENAI_API_KEY)
+            response = client.chat.completions.create(
+                model=settings.OPENAI_CHAT_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                response_format={"type": "json_object"}
+            )
+            result_text = response.choices[0].message.content.strip()
+            factory_reqs = json.loads(result_text)
+            extracted = True
+            print("🧠 Successfully extracted factory safety training requirements using GPT.")
+        except Exception as e:
+            print(f"⚠️ Failed to extract factory training requirements using GPT: {str(e)}")
+            
+    if not extracted:
+        # Fallback to safety rules extracted from the PDF (NeoChip Semiconductor 안전관리규정_통합.pdf)
+        factory_reqs = {
+            "A동": ["교육01", "교육02", "교육03", "교육04", "교육05", "교육06"],
+            "B동": ["교육01", "교육02", "교육03", "교육04", "교육05", "교육07", "교육08"],
+            "C동": ["교육01", "교육02", "교육03", "교육04", "교육05", "교육09", "교육10", "교육11"],
+            "D동": ["교육01", "교육02", "교육03", "교육04", "교육05", "교육12", "교육13"],
+            "E동": ["교육01", "교육02", "교육03", "교육04", "교육05", "교육15", "교육16"],
+            "F동": ["교육01", "교육02", "교육03", "교육04", "교육05", "교육17", "교육18", "교육19"],
+            "G동": ["교육01", "교육02", "교육03", "교육04", "교육05", "교육20", "교육21"]
         }
+        
+    # 3. Find available training columns in the training CSV
+    available_edus = set()
+    for col in training_df.columns:
+        m = re.match(r'교육(\d+)\s*(?:이수일|만료일)', col)
+        if m:
+            available_edus.add(int(m.group(1)))
+            
+    # Determine the employee ID column name (case-insensitive)
+    emp_id_col = "사원ID"
+    for col in training_df.columns:
+        if col.strip().lower() in ("사원id", "id"):
+            emp_id_col = col
+            break
+            
+    # 4. Perform deterministic matching in Python
+    qualified_map = {}
+    for factory, req_edus in factory_reqs.items():
+        eligible_workers = []
+        for _, row in training_df.iterrows():
+            emp_id_val = str(row[emp_id_col]).strip()
+            emp_id_lower = emp_id_val.lower()
+            emp_name = str(row.get("이름", "")).strip()
+            
+            # Skip administrator and leaders who shouldn't be assigned
+            if emp_id_lower == "emp000" or "관리자" in emp_name:
+                continue
+                
+            is_eligible = True
+            for edu_str in req_edus:
+                m_edu = re.search(r'\d+', edu_str)
+                if not m_edu:
+                    continue
+                edu_num = int(m_edu.group(0))
+                
+                # Rule 2: If the required education is not present in the CSV columns, ignore/pass it.
+                if edu_num not in available_edus:
+                    continue
+                    
+                # Otherwise, check date validity against 2026-07-01
+                status_col = f"교육{edu_num} 이수일"
+                exp_col = f"교육{edu_num} 만료일"
+                
+                if status_col not in training_df.columns or exp_col not in training_df.columns:
+                    continue
+                    
+                val_status = row[status_col]
+                val_exp = row[exp_col]
+                
+                if pd.isna(val_status) or pd.isna(val_exp):
+                    is_eligible = False
+                    break
+                    
+                try:
+                    exp_date = pd.to_datetime(val_exp).date()
+                    ref_date = date(2026, 7, 1)
+                    if exp_date < ref_date:
+                        is_eligible = False
+                        break
+                except:
+                    is_eligible = False
+                    break
+            
+            if is_eligible:
+                eligible_workers.append(emp_id_lower)
+                
+        qualified_map[factory] = eligible_workers
+        
+    return qualified_map
+
+
+def get_daily_work_minutes(db: Session) -> int:
+    """
+    Queries RAG for daily working hours and extracts the minutes using GPT.
+    Defaults to 480 minutes (8 hours) if not specified or upon error.
+    """
+    default_mins = 480
+    if not settings.OPENAI_API_KEY:
+        return default_mins
+        
+    try:
+        rules = search_safety_rules(db, "일일 근무시간 정규 근무시간 작업시간 제한", top_k=3)
+        if not rules:
+            return default_mins
+            
+        context = "\n".join(rules)
+        prompt = f"""다음 안전 규정 문서 내용에서 하루 최대 근무 시간 또는 일일 정규 근무 시간을 찾아 분(minutes) 단위 숫자로만 답변해주세요.
+예를 들어 '8시간'이면 '480', '12시간'이면 '720'처럼 숫자만 출력해야 합니다.
+만약 문서에 근무 시간에 대한 명확한 언급이 없다면 '480'을 출력해주세요. 다른 설명이나 텍스트는 포함하지 마십시오.
+
+[안전 규정 내용]
+{context}
+"""
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model=settings.OPENAI_CHAT_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0
+        )
+        ans = response.choices[0].message.content.strip()
+        import re
+        match = re.search(r'\d+', ans)
+        if match:
+            return int(match.group(0))
+        return default_mins
+    except Exception as e:
+        print(f"⚠️ Failed to get daily work minutes from RAG/GPT: {str(e)}")
+        return default_mins
+
+
+def get_work_days_from_rag(db: Session) -> List[int]:
+    """
+    Queries RAG for working days (e.g. '근무일 규정', '주말 근무') and extracts which weekdays are active.
+    Defaults to [0, 1, 2, 3, 4] (Monday to Friday, 5 days).
+    0 = Monday, 1 = Tuesday, 2 = Wednesday, 3 = Thursday, 4 = Friday, 5 = Saturday, 6 = Sunday.
+    """
+    default_days = [0, 1, 2, 3, 4] # Monday to Friday
+    if not settings.OPENAI_API_KEY:
+        return default_days
+        
+    try:
+        rules = search_safety_rules(db, "근무일 규정 주말 근무 휴일 규정", top_k=3)
+        if not rules:
+            return default_days
+            
+        context = "\n".join(rules)
+        prompt = f"""다음 안전 규정 문서 내용에서 일주일 중 며칠 근무하는지 또는 어떤 요일에 근무하는지에 대한 규정을 찾아서,
+근무하는 요일을 Python 리스트 형식의 정수로만 답변해주세요.
+요일 매핑: 월요일=0, 화요일=1, 수요일=2, 목요일=3, 금요일=4, 토요일=5, 일요일=6
+예를 들어 월요일부터 금요일까지 주 5일 근무이면 '[0, 1, 2, 3, 4]'를 출력하고,
+만약 주말을 포함하여 월요일부터 토요일까지 주 6일 근무이면 '[0, 1, 2, 3, 4, 5]'를 출력해야 합니다.
+만약 문서에 근무 요일에 대한 명확한 언급이 없다면 기본값인 월요일~금요일 주 5일 근무인 '[0, 1, 2, 3, 4]'를 출력해주세요. 다른 설명이나 텍스트는 포함하지 마십시오.
+
+[안전 규정 내용]
+{context}
+"""
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model=settings.OPENAI_CHAT_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0
+        )
+        ans = response.choices[0].message.content.strip()
+        import json
+        import re
+        match = re.search(r'\[[0-6,\s]+\]', ans)
+        if match:
+            return json.loads(match.group(0))
+        return default_days
+    except Exception as e:
+        print(f"⚠️ Failed to get work days from RAG/GPT: {str(e)}")
+        return default_days

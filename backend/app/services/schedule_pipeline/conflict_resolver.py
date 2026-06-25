@@ -44,15 +44,43 @@ def resolve_conflicts(
     orders_df: pd.DataFrame,
     equip_df: pd.DataFrame,
     tasks_df: pd.DataFrame,
-    qualified_workers: Dict[str, List[str]]
+    qualified_workers: Dict[str, List[str]],
+    daily_work_minutes: int = 480,
+    start_date: date = None,
+    work_days: List[int] = None
 ) -> pd.DataFrame:
     """
     Simulates scheduling step-by-step and day-by-day.
     Allocates task minutes to resources and shifts dates in case of overload.
     """
-    # 1. Fetch employee names for formatting
+    if start_date is None:
+        start_date = date.today()
+    if work_days is None:
+        work_days = [0, 1, 2, 3, 4] # Default Monday to Friday
+        
+    work_days_set = set(work_days)
+    
+    def is_workday(d: date) -> bool:
+        return d.weekday() in work_days_set
+        
+    def next_workday(d: date) -> date:
+        curr = d + timedelta(days=1)
+        while not is_workday(curr):
+            curr += timedelta(days=1)
+        return curr
+        
+    # Collect all qualified employee IDs from qualified_workers (which already excludes emp000)
+    valid_csv_emp_ids = set()
+    for workers in qualified_workers.values():
+        valid_csv_emp_ids.update(workers)
+
+    # 1. Fetch employee names for formatting, filtering to only include workers from qualified_workers
     emp_rows = db.execute(text("SELECT emp_id, emp_name FROM employees")).mappings().all()
-    emp_names = {row["emp_id"].lower().strip(): row["emp_name"] for row in emp_rows}
+    emp_names = {
+        row["emp_id"].lower().strip(): row["emp_name"] 
+        for row in emp_rows 
+        if row["emp_id"].lower().strip() in valid_csv_emp_ids
+    }
     
     # 2. Map equipment symbol/name to ID and build available counts
     # E.g. '장비1' -> 'EQ001', '장비2' -> 'EQ002'
@@ -87,7 +115,7 @@ def resolve_conflicts(
             "quantity": quantity,
             "due_date": due_date,
             "product_type": product_type,
-            "current_date": date(2026, 7, 1) # base scheduling start date
+            "current_date": start_date
         })
 
     # 4. Filter tasks and group them by step
@@ -161,11 +189,10 @@ def resolve_conflicts(
                 continue
                 
             order_start_date = order["current_date"]
-            if is_weekend(order_start_date):
-                order_start_date = next_weekday(order_start_date)
+            if not is_workday(order_start_date):
+                order_start_date = next_workday(order_start_date)
                 
             # Pre-assign workers for each task in this step
-            # We want to assign exactly 2 workers with the lowest cumulative load so far
             task_assignments = {}
             for t in tasks:
                 factory = t["factory"]
@@ -174,16 +201,23 @@ def resolve_conflicts(
                     # Fallback to general employees
                     eligible = list(emp_names.keys())
                     
+                # Determine max parallel workers (capped by equipment availability)
+                req_equips = t["required_equipments"]
+                max_workers = max(1, min(equip_capacities.get(eq, 1) for eq in req_equips)) if req_equips else 10
+                num_workers_to_assign = min(len(eligible), max_workers)
+                num_workers_to_assign = max(1, num_workers_to_assign)
+                
                 # Sort eligible workers by their total workload so far
                 eligible_sorted = sorted(eligible, key=lambda emp: worker_total_load.get(emp, 0))
-                assigned = eligible_sorted[:2]
+                assigned = eligible_sorted[:num_workers_to_assign]
                 task_assignments[t["task_id"]] = assigned
                 
                 # Update total workload
                 multiplier = math.ceil(order["quantity"] / 1000)
                 task_duration = t["base_time"] * multiplier
+                avg_duration = math.ceil(task_duration / len(assigned))
                 for w in assigned:
-                    worker_total_load[w] = worker_total_load.get(w, 0) + task_duration
+                    worker_total_load[w] = worker_total_load.get(w, 0) + avg_duration
 
             # Simulate scheduling day-by-day starting from order_start_date
             curr_date = order_start_date
@@ -193,12 +227,13 @@ def resolve_conflicts(
             multiplier = math.ceil(order["quantity"] / 1000)
             remaining_mins = {t["task_id"]: t["base_time"] * multiplier for t in tasks}
             
-            # Track start date for all tasks in the step
-            actual_step_start = curr_date
+            # Track start and end date for each task in the step
+            task_start_dates = {}
+            task_end_dates = {}
             
             while not step_completed:
-                if is_weekend(curr_date):
-                    curr_date = next_weekday(curr_date)
+                if not is_workday(curr_date):
+                    curr_date = next_workday(curr_date)
                     continue
                     
                 # Check if we can allocate minutes on curr_date
@@ -212,32 +247,58 @@ def resolve_conflicts(
                         
                     assigned_workers = task_assignments[t_id]
                     req_equips = t["required_equipments"]
+                    num_workers = len(assigned_workers)
                     
-                    # Maximum we can allocate on this day
-                    alloc_limit = rem
+                    # Calculate maximum elapsed time we want to allocate on this day
+                    req_elapsed = math.ceil(rem / num_workers)
                     
                     # 1. Limit by worker availability
+                    w_avail_limit = req_elapsed
                     for w in assigned_workers:
                         w_load = get_load(worker_daily_load, curr_date, w)
-                        w_avail = max(0, 1440 - w_load)
-                        alloc_limit = min(alloc_limit, w_avail)
+                        w_avail = max(0, daily_work_minutes - w_load)
+                        w_avail_limit = min(w_avail_limit, w_avail)
                         
                     # 2. Limit by equipment availability
+                    eq_avail_limit = req_elapsed
                     for eq in req_equips:
                         eq_load = get_load(equip_daily_load, curr_date, eq)
-                        eq_cap = equip_capacities.get(eq, 1) * 1440
+                        eq_cap = equip_capacities.get(eq, 1) * daily_work_minutes
                         eq_avail = max(0, eq_cap - eq_load)
-                        alloc_limit = min(alloc_limit, eq_avail)
+                        # Parallel workers use parallel equipments
+                        eq_elapsed_limit = eq_avail // num_workers
+                        eq_avail_limit = min(eq_avail_limit, eq_elapsed_limit)
                         
+                    # Max we can allocate on this day
+                    alloc_elapsed = min(w_avail_limit, eq_avail_limit)
+                    
+                    # Contiguous Scheduling Rule:
+                    # If the remaining task duration is less than or equal to daily work minutes,
+                    # we only schedule it if we can complete it in full on this day.
+                    # Otherwise, if the task duration exceeds a single day, we allocate whatever is available.
+                    if req_elapsed <= daily_work_minutes:
+                        if alloc_elapsed < req_elapsed:
+                            continue # Skip allocation today, wait for next workday when capacity is available
+                    else:
+                        if alloc_elapsed <= 0:
+                            continue
+                            
                     # Allocate if possible
-                    if alloc_limit > 0:
+                    if alloc_elapsed > 0:
+                        work_done = min(rem, alloc_elapsed * num_workers)
+                        
+                        # Record start/end dates
+                        if t_id not in task_start_dates:
+                            task_start_dates[t_id] = curr_date
+                        task_end_dates[t_id] = curr_date
+                        
                         # Add load
                         for w in assigned_workers:
-                            add_load(worker_daily_load, curr_date, w, alloc_limit)
+                            add_load(worker_daily_load, curr_date, w, alloc_elapsed)
                         for eq in req_equips:
-                            add_load(equip_daily_load, curr_date, eq, alloc_limit)
+                            add_load(equip_daily_load, curr_date, eq, work_done)
                             
-                        remaining_mins[t_id] -= alloc_limit
+                        remaining_mins[t_id] -= work_done
                         any_allocation_made = True
                 
                 # Check if all tasks in the step are finished
@@ -246,8 +307,7 @@ def resolve_conflicts(
                     actual_step_end = curr_date
                 else:
                     # If we couldn't allocate anything on this day (deadlock/overload), we must shift day
-                    # Or even if we made allocation, we shift to the next weekday to schedule the rest
-                    curr_date = next_weekday(curr_date)
+                    curr_date = next_workday(curr_date)
             
             # Record the schedule for all tasks in this step
             for t in tasks:
@@ -262,10 +322,14 @@ def resolve_conflicts(
                     worker_strs.append(f"{w.upper()}({name})")
                 worker_formatted = ";".join(worker_strs)
                 
-                # Determine status
+                # Retrieve individual task start and end dates
+                t_start = task_start_dates.get(t_id, order_start_date)
+                t_end = task_end_dates.get(t_id, order_start_date)
+                
+                # Determine status based on this task's end date
                 multiplier = math.ceil(order["quantity"] / 1000)
                 task_duration = t["base_time"] * multiplier
-                status = "납기내완료" if actual_step_end <= order["due_date"] else "납기초과"
+                status = "납기내완료" if t_end <= order["due_date"] else "납기초과"
                 
                 schedule_rows.append({
                     "주문번호": order["order_num"],
@@ -278,15 +342,15 @@ def resolve_conflicts(
                     "공장동": t["factory"],
                     "필요장비": t["equip_symbols"],
                     "배정직원": worker_formatted,
-                    "시작일": actual_step_start.strftime("%Y-%m-%d"),
-                    "종료일": actual_step_end.strftime("%Y-%m-%d"),
+                    "시작일": t_start.strftime("%Y-%m-%d"),
+                    "종료일": t_end.strftime("%Y-%m-%d"),
                     "작업시간_분": task_duration,
                     "납기일": order["due_date"].strftime("%Y-%m-%d"),
                     "납기상태": status
                 })
                 
             # Set order's current date to the next weekday after this step's end date
-            order["current_date"] = next_weekday(actual_step_end)
+            order["current_date"] = next_workday(actual_step_end)
 
     # 7. Convert to DataFrame and sort by order_num and step
     result_df = pd.DataFrame(schedule_rows)

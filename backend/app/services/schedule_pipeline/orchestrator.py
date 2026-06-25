@@ -1,7 +1,8 @@
 import pandas as pd
+from datetime import date
 from sqlalchemy.orm import Session
 from app.services.schedule_pipeline.csv_io import load_input_csvs_from_r2, upload_schedule_to_r2
-from app.services.schedule_pipeline.gpt_scheduler import get_qualified_workers
+from app.services.schedule_pipeline.gpt_scheduler import get_qualified_workers, get_daily_work_minutes, get_work_days_from_rag
 from app.services.schedule_pipeline.conflict_resolver import resolve_conflicts
 
 def generate_and_upload_schedule(db: Session) -> dict:
@@ -24,9 +25,25 @@ def generate_and_upload_schedule(db: Session) -> dict:
     qualified_workers = get_qualified_workers(db, training_df)
     print(f"✅ Qualified workers map generated: {list(qualified_workers.keys())}")
     
+    # Fetch daily work minutes from RAG
+    print("🕰️ Querying daily working hours from RAG...")
+    daily_work_minutes = get_daily_work_minutes(db)
+    print(f"✅ Daily working hours limit: {daily_work_minutes} minutes ({daily_work_minutes/60:.1f} hours)")
+    
+    # Fetch working days from RAG
+    print("📅 Querying weekly working days from RAG...")
+    work_days = get_work_days_from_rag(db)
+    print(f"✅ Active working weekdays: {work_days}")
+    
     # Step 3: Run conflict resolution date calculations
     print("⚡ Resolving resource conflicts and scheduling dates...")
-    schedule_df = resolve_conflicts(db, orders_df, equip_df, tasks_df, qualified_workers)
+    today = date.today()
+    schedule_df = resolve_conflicts(
+        db, orders_df, equip_df, tasks_df, qualified_workers,
+        daily_work_minutes=daily_work_minutes,
+        start_date=today,
+        work_days=work_days
+    )
     
     if schedule_df.empty:
         raise ValueError("Generated schedule is empty. Please check the inputs.")

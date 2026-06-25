@@ -195,7 +195,7 @@ async def process_uploaded_document(
 ) -> dict:
     data = await upload.read()
     extension = _validate_file(upload=upload, data=data)
-
+    # R2에 업로드
     prefix = CATEGORY_PREFIX_MAP[category]
     r2_key = build_r2_key(upload.filename, prefix)
     upload_bytes_to_r2(
@@ -204,6 +204,7 @@ async def process_uploaded_document(
         content_type=upload.content_type or guess_content_type(upload.filename),
     )
 
+    # DB에 문서 메타데이터저장
     document, changed = _upsert_document_metadata(
         db,
         uploader=uploader,
@@ -386,7 +387,7 @@ def search_rag_chunks(db: Session, query: str, top_k: int | None = None) -> list
         for row in rows
     ]
 
-
+# DB에서 파일 찾고 R2에서 파일 다운로드 후 반환
 def get_document_bytes(db: Session, file_id: str) -> tuple[Document, bytes]:
     doc = db.query(Document).filter(Document.file_id == file_id).first()
     if not doc:

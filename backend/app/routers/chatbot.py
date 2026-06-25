@@ -553,3 +553,111 @@ CSV 생성 시 주의사항:
     reply_text += f"\n\n📥 DOWNLOAD:{new_doc.file_id}:{new_file_name}"
 
     return ChatResponse(reply=reply_text, source="gpt")
+
+# ─── Text-to-SQL 엔드포인트 ──────────────────────────────────
+DB_SCHEMA = """
+테이블 목록 및 스키마:
+
+1. employees (직원)
+   - emp_id: 직원ID (PK)
+   - login_id: 로그인ID
+   - emp_name: 이름
+   - emp_role: 역할 (leader/member)
+   - emp_date: 입사일
+
+2. safety_training (안전교육)
+   - training_id: 교육ID (PK)
+   - emp_id: 직원ID (FK -> employees)
+   - training_name: 교육명
+   - training_date: 이수일
+   - expired_date: 만료일
+   - training_status: 상태 (completed 등)
+
+3. equipments (장비)
+   - eq_id: 장비ID (PK)
+   - eq_name: 장비명
+   - eq_count: 전체수량
+   - available_eq_count: 사용가능수량
+   - check_cycle: 점검주기(일)
+   - eq_status: 상태
+   - check_date: 다음점검일
+   - recent_check_date: 최근점검일
+
+4. orders (주문)
+   - order_id: 주문ID (PK)
+   - order_num: 주문번호
+   - product_name: 제품명
+   - order_count: 수량
+   - due_date: 납기일
+   - order_status: 상태
+
+5. schedules (일정)
+   - id: 일정ID (PK)
+   - task_id: 작업ID
+   - order_id: 주문ID
+   - start_date: 시작일
+   - end_date: 종료일
+   - factory: 공장
+"""
+
+@router.post("/chatbot/text-to-sql", response_model=ChatResponse, summary="Text-to-SQL 기반 데이터 조회")
+async def text_to_sql(
+    body: ChatRequest,
+    db: Session = Depends(get_db),
+) -> ChatResponse:
+    from sqlalchemy import text as sql_text
+
+    # 1. LLM에게 SQL 생성 요청
+    sql_prompt = f"""당신은 PostgreSQL 전문가입니다. 아래 DB 스키마를 보고 사용자 질문에 맞는 SQL 쿼리를 생성해주세요.
+
+{DB_SCHEMA}
+
+사용자 질문: {body.message}
+
+규칙:
+- SELECT 쿼리만 생성 (INSERT/UPDATE/DELETE 금지)
+- 결과는 SQL 쿼리만 반환 (설명 없이)
+- 코드블록(```) 없이 순수 SQL만
+- employees 테이블 join 시 emp_name 컬럼 사용
+- 한국어 이름으로 검색할 때는 employees.emp_name 사용"""
+
+    sql_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": sql_prompt}],
+        temperature=0,
+    )
+
+    generated_sql = sql_response.choices[0].message.content.strip()
+    generated_sql = generated_sql.replace("```sql", "").replace("```", "").strip()
+
+    # 2. SQL 실행
+    try:
+        result = db.execute(sql_text(generated_sql))
+        rows = result.fetchall()
+        columns = result.keys()
+        
+        if not rows:
+            data_str = "조회 결과가 없습니다."
+        else:
+            header = " | ".join(columns)
+            data_rows = [" | ".join(str(v) for v in row) for row in rows]
+            data_str = header + "\n" + "\n".join(data_rows)
+    except Exception as e:
+        return ChatResponse(reply=f"SQL 실행 오류: {e}\n\n생성된 SQL: {generated_sql}", source="sql")
+
+    # 3. 결과를 LLM에 줘서 자연어 답변 생성
+    answer_prompt = f"""사용자 질문: {body.message}
+
+조회 결과:
+{data_str}
+
+위 데이터를 바탕으로 사용자 질문에 친절하게 한국어로 답변해주세요."""
+
+    answer_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": answer_prompt}],
+        temperature=0.3,
+    )
+
+    reply = answer_response.choices[0].message.content.strip()
+    return ChatResponse(reply=reply, source="sql")

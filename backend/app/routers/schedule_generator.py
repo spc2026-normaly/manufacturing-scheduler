@@ -3,6 +3,8 @@ import json
 import uuid
 import re
 import csv
+import pdfplumber
+import openpyxl
 from io import BytesIO, StringIO
 from typing import List
 from fastapi import APIRouter, HTTPException, Depends
@@ -530,7 +532,8 @@ async def generate_schedule(
             direct_parsed_schedules += direct_count
             direct_parsed_any = True
         else:
-            all_text += f"\n\n[파일: {doc.file_name}]\n{file_text}"
+            print(f"ℹ️ Skipping non-schedule file: {doc.file_name}")
+            continue
 
     llm_parsed_schedules = 0
     combined_result = {
@@ -877,7 +880,7 @@ async def generate_schedule(
 
 @router.post("/generate-from-r2", summary="R2 클라우드 문서 기반 일정 생성")
 async def generate_schedule_from_r2(
-    prefix: str = "safety_manage/",
+    prefix: str = "schedule-data-output/",
     db: Session = Depends(get_db),
     current_emp: Employee = Depends(get_current_employee)
 ):
@@ -960,7 +963,8 @@ async def generate_schedule_from_r2(
                     direct_parsed_schedules += direct_count
                     direct_parsed_any = True
                 else:
-                    all_text += f"\n\n[파일: {filename}]\n{file_text}"
+                    print(f"ℹ️ Skipping non-schedule file: {filename}")
+                    continue
                 
             except Exception as e:
                 print(f"⚠️ 파일 처리 오류 ({file_info['file_name']}): {str(e)}")

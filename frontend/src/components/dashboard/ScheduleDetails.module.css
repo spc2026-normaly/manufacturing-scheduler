@@ -6,6 +6,7 @@
   padding: 24px;
   display: flex;
   flex-direction: column;
+  max-height: 680px;
 }
 .detailsCardHeader {
   display: flex;
@@ -32,6 +33,9 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 4px;
 }
 .assignmentItem {
   background-color: var(--bg-main, #f8fafc);

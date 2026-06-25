@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { DocFile } from "../types/document";
 import { useToast } from "../app/AppLayout";
 import {
@@ -18,6 +18,49 @@ export function useDocuments() {
   const [progress, setProgress] = useState(0);
   const [r2SyncMessage, setR2SyncMessage] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
   const [r2Syncing, setR2Syncing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortField, setSortField] = useState<'file_name' | 'file_created_at' | 'file_size' | 'file_extension' | 'uploader'>('file_created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const toggleSort = (field: 'file_name' | 'file_created_at' | 'file_size' | 'file_extension' | 'uploader') => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortOrder("desc");
+    }
+  };
+
+  const filteredAndSortedDocuments = useMemo(() => {
+    let result = [...documents];
+
+    // Search by file_name
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter((doc) => doc.file_name.toLowerCase().includes(q));
+    }
+
+    // Sort
+    if (sortField) {
+      result.sort((a, b) => {
+        let valA = a[sortField];
+        let valB = b[sortField];
+
+        if (typeof valA === "string") {
+          valA = valA.toLowerCase();
+          valB = valB.toLowerCase();
+          return sortOrder === "asc" ? valA.localeCompare(valB, "ko") : valB.localeCompare(valA, "ko");
+        }
+
+        // Numeric or date
+        if (valA < valB) return sortOrder === "asc" ? -1 : 1;
+        if (valA > valB) return sortOrder === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [documents, searchQuery, sortField, sortOrder]);
 
   const loadDocuments = async () => {
     try {
@@ -37,22 +80,27 @@ export function useDocuments() {
   }, []);
 
   const addUploadedFile = async (file: File) => {
+    console.log("[useDocuments] addUploadedFile started for:", file.name);
     const supportedTypes = ["csv", "xlsx", "pdf", "txt", "docx"];
     const ext = file.name.split(".").pop()?.toLowerCase() || "";
     if (!supportedTypes.includes(ext)) {
+      console.log("[useDocuments] Unsupported file extension:", ext);
       showToast("지원하지 않는 파일 형식입니다.");
       return;
     }
 
     try {
+      console.log("[useDocuments] Uploading file...");
       const res = await uploadDocument(file);
+      console.log("[useDocuments] Upload response status:", res.status);
       if (res.ok) {
         showToast(`'${file.name}' 파일이 업로드되었습니다.`);
         loadDocuments();
       } else {
         showToast("업로드에 실패했습니다.");
       }
-    } catch {
+    } catch (err) {
+      console.error("[useDocuments] Upload error:", err);
       showToast("서버 연결에 실패했습니다.");
     }
   };
@@ -184,12 +232,17 @@ export function useDocuments() {
   }, [r2SyncMessage]);
 
   return {
-    documents,
+    documents: filteredAndSortedDocuments,
     dragActive,
     scheduleStatus,
     progress,
     r2SyncMessage,
     r2Syncing,
+    searchQuery,
+    setSearchQuery,
+    sortField,
+    sortOrder,
+    toggleSort,
     handleDrag,
     handleDrop,
     handleFileChange,

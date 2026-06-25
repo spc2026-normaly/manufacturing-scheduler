@@ -38,9 +38,11 @@
   padding: 12px;
   background-color: #f8fafc;
   min-height: 140px;
+  max-height: 240px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-y: auto;
 }
 .individualRosterDay.activeDay {
   background-color: #eff6ff;

@@ -4,7 +4,7 @@ import React from "react";
 import { useDocuments } from "../../hooks/useDocuments";
 import { StatusBanner } from "../../components/documents/StatusBanner";
 import { UploadSection } from "../../components/documents/UploadSection";
-import { RecentDocuments } from "../../components/documents/RecentDocuments";
+import { Templates } from "../../components/documents/Templates";
 import { DocumentsTable } from "../../components/documents/DocumentsTable";
 import styles from "./page.module.css";
 
@@ -16,6 +16,11 @@ export default function DocumentsPage() {
     progress,
     r2SyncMessage,
     r2Syncing,
+    searchQuery,
+    setSearchQuery,
+    sortField,
+    sortOrder,
+    toggleSort,
     handleDrag,
     handleDrop,
     handleFileChange,
@@ -47,11 +52,8 @@ export default function DocumentsPage() {
           handleSyncR2={handleSyncR2}
         />
 
-        {/* ── Recent Documents Panel ── */}
-        <RecentDocuments
-          documents={documents}
-          handleDownload={handleDownload}
-        />
+        {/* ── Templates Panel ── */}
+        <Templates />
       </div>
 
       {/* ── Documents List Table ── */}
@@ -59,6 +61,11 @@ export default function DocumentsPage() {
         documents={documents}
         handleDownload={handleDownload}
         handleDelete={handleDelete}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        toggleSort={toggleSort}
       />
     </div>
   );

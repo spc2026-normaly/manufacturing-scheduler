@@ -6,6 +6,7 @@ import {
   fetchSafetyTrainings,
   fetchAllEquipments,
   fetchCalendarSummary,
+  fetchDocuments,
 } from "../services/dashboardService";
 
 // Date utilities
@@ -62,6 +63,7 @@ export function useDashboard() {
   const [upcomingCount, setUpcomingCount] = useState(12);
   const [upcomingList, setUpcomingList] = useState<Array<{ name: string; dday: string; urgent: boolean }>>([]);
   const [equipments, setEquipments] = useState<any[]>([]);
+  const [documentsCount, setDocumentsCount] = useState(36);
 
   const triggerToast = (text: string) => {
     setToastText(text);
@@ -164,7 +166,10 @@ export function useDashboard() {
         if (stRes.ok) {
           const stData = await stRes.json();
           if (stData.length > 0) {
-            const completed = stData.filter((t: any) => t.training_status === "COMPLETED").length;
+            const completed = stData.filter((t: any) => {
+              const status = String(t.training_status).toUpperCase();
+              return status === "COMPLETED" || status === "유효";
+            }).length;
             const rate = Math.round((completed / stData.length) * 1000) / 10;
             setCompletionRate(rate);
           }
@@ -201,6 +206,13 @@ export function useDashboard() {
             };
           });
           setUpcomingList(mapped);
+        }
+
+        // 4. Fetch documents count
+        const docRes = await fetchDocuments();
+        if (docRes.ok) {
+          const docData = await docRes.json();
+          setDocumentsCount(docData.length);
         }
 
       } catch (err) {
@@ -271,5 +283,6 @@ export function useDashboard() {
     calendarDays,
     selectedDayTasks,
     selectedDayChecks,
+    documentsCount,
   };
 }

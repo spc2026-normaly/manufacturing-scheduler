@@ -60,6 +60,8 @@ interface Toast {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  console.log("[AppLayout] Rendering, current toasts:", toasts);
 
   // Authentication states
   const [token, setToken] = useState<string | null>(null);
@@ -74,8 +76,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Determine active menu based on URL pathname
   const activeMenu = pathname === "/employees" ? "팀원 관리" : pathname === "/safety-training" ? "안전 교육 현황" : pathname === "/equipments" ? "장비 관리" : pathname === "/documents" ? "내 문서" : pathname === "/schedules" ? "양산 일정" : "메인";
-
-  const [toasts, setToasts] = useState<Toast[]>([]);
 
   // Fetch /api/auth/me to verify token
   const fetchMe = async (authToken: string) => {
@@ -191,6 +191,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Toast helper
   const showToast = (message: string) => {
+    console.log("[showToast] Triggered with message:", message);
     const id = Date.now();
     setToasts((prev) => [...prev, { id, message }]);
     setTimeout(() => {
@@ -362,7 +363,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Toast Container */}
-        <div className="toast-container">
+        <div className="toast-container login-toast">
           {toasts.map((toast) => (
             <div key={toast.id} className="toast-message animate-in">
               <span className="toast-icon">ℹ️</span>
@@ -492,7 +493,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <AIChatbot />
 
       {/* ── Toast Container ── */}
-      <div className="toast-container">
+      <div className="toast-container app-toast">
         {toasts.map((toast) => (
           <div key={toast.id} className="toast-message animate-in">
             <span className="toast-icon">ℹ️</span>

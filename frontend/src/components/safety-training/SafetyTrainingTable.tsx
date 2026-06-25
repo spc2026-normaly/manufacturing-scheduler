@@ -8,6 +8,16 @@ interface SafetyTrainingTableProps {
 }
 
 export function SafetyTrainingTable({ currentUser, filteredWorkers }: SafetyTrainingTableProps) {
+  const [todayStr, setTodayStr] = React.useState("");
+
+  React.useEffect(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    setTodayStr(`${yyyy}.${mm}.${dd}`);
+  }, []);
+
   // Helper to render state badge
   const renderBadge = (training: TrainingStatus) => {
     switch (training.state) {
@@ -64,7 +74,7 @@ export function SafetyTrainingTable({ currentUser, filteredWorkers }: SafetyTrai
         </span>
         {currentUser?.emp_role === "member" && (
           <span style={{ fontSize: "13px", fontWeight: "normal", color: "var(--text-muted, #64748b)" }}>
-            오늘 날짜 : 2026.06.15
+            오늘 날짜 : {todayStr}
           </span>
         )}
       </div>

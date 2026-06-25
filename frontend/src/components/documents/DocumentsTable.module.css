@@ -7,6 +7,8 @@
 }
 .docTableWrapper {
   overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
 }
 .docTable {
   width: 100%;
@@ -20,6 +22,9 @@
   font-weight: 600;
   color: var(--text-muted, #475569);
   border-bottom: 1px solid var(--border, #e2e8f0);
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 .docTable td {
   padding: 14px 24px;
@@ -43,6 +48,76 @@
 }
 .docIconBtn.delete {
   color: #ef4444;
+}
+.docTableTopBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 12px;
+  gap: 16px;
+}
+@media (max-width: 640px) {
+  .docTableTopBar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+.docTableTitle {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-main, #0f172a);
+}
+.docTableSearchWrapper {
+  position: relative;
+  width: 220px;
+}
+@media (max-width: 640px) {
+  .docTableSearchWrapper {
+    width: 100%;
+  }
+}
+.docTableSearchInput {
+  width: 100%;
+  padding: 6px 32px 6px 12px;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  background-color: var(--bg-main, #ffffff);
+  color: var(--text-main, #1e293b);
+  transition: all 0.2s ease;
+}
+.docTableSearchInput:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+}
+.docTableSearchIcon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--text-muted, #94a3b8);
+  pointer-events: none;
+}
+.sortableHeader {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+.sortableHeader:hover {
+  background-color: #f1f5f9 !important;
+}
+.sortIndicator {
+  margin-left: 6px;
+  font-size: 10px;
+  opacity: 0.4;
+}
+.sortActive {
+  margin-left: 6px;
+  font-size: 10px;
+  color: #3b82f6;
+  font-weight: 700;
 }
 .docEmptyCell {
   text-align: center;

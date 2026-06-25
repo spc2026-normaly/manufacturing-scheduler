@@ -57,7 +57,6 @@ export function GanttMonthView({
   return (
     <div>
       <div className={styles.ganttTitleRow}>
-        <span className={styles.ganttTitle}>생산 일정 캘린더 ({selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월)</span>
         <div className={styles.ganttFilters}>
           <select
             className={styles.ganttSelect}
@@ -95,8 +94,8 @@ export function GanttMonthView({
               </option>
             ))}
           </select>
-          <button className="sched-btn" onClick={() => showToast("캘린더 데이터를 새로고침했습니다.")}>C 새로고침</button>
         </div>
+        <span className={styles.ganttTitle}>생산 일정 캘린더 ({selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월)</span>
       </div>
 
       <div className={styles.ganttWrapper}>

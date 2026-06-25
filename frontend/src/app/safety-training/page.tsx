@@ -41,6 +41,7 @@ export default function SafetyTrainingPage() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<{ emp_id: string; emp_name: string; emp_role: string; login_id: string } | null>(null);
   const [isForbidden, setIsForbidden] = useState(false);
+  const [todayStr, setTodayStr] = useState("");
 
   const getAuthHeaders = () => {
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -48,7 +49,9 @@ export default function SafetyTrainingPage() {
   };
 
   const calculateTrainingStatus = (expiredDateStr: string): { state: TrainingStatus["state"]; dday: string } => {
-    const baseDate = new Date("2026-06-15");
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const baseDate = new Date(todayStr);
     const targetDate = new Date(expiredDateStr);
     const diffDays = Math.ceil((targetDate.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24));
     if (diffDays < 0) return { state: "expired", dday: "만료" };
@@ -113,7 +116,14 @@ export default function SafetyTrainingPage() {
     }
   };
 
-  useEffect(() => { fetchSafetyTrainings(); }, []);
+  useEffect(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    setTodayStr(`${yyyy}.${mm}.${dd}`);
+    fetchSafetyTrainings();
+  }, []);
 
   const filteredWorkers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -166,8 +176,10 @@ export default function SafetyTrainingPage() {
   return (
     <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
       <style>{`
-        .st-search-input { padding: 8px 16px; border: 1px solid #cbd5e1; border-radius: 20px; font-size: 14px; outline: none; background-color: #ffffff; color: #1e293b; }
+        .st-search-box { position: relative; width: 220px; }
+        .st-search-input { width: 100%; padding: 6px 32px 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; outline: none; background-color: #ffffff; color: #1e293b; transition: all 0.2s ease; }
         .st-search-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
+        .st-search-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 12px; color: #94a3b8; pointer-events: none; }
         .st-table { width: 100%; border-collapse: collapse; text-align: left; }
         .st-table th { background-color: #f8fafc; padding: 12px 24px; font-size: 13px; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
         .st-table td { padding: 14px 24px; font-size: 14px; color: #334155; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
@@ -195,16 +207,7 @@ export default function SafetyTrainingPage() {
       {/* 헤더 */}
       {currentUser?.emp_role !== "member" && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff", padding: "16px 24px", borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.05)", flexShrink: 0 }}>
-          <span style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", whiteSpace: "nowrap" }}>오늘 날짜 : 2026.06.15</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, flexGrow: 1, justifyContent: "center", maxWidth: 450, margin: "0 24px", minWidth: 0 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#64748b", whiteSpace: "nowrap" }}>만료/완료 통계</span>
-            <div className="st-progress-multi">
-              <div className="st-progress-sec completed" style={{ width: `${completedRate}%` }} />
-              <div className="st-progress-sec warning" style={{ width: `${warningRate}%` }} />
-              <div className="st-progress-sec expired" style={{ width: `${expiredRate}%` }} />
-            </div>
-            <span style={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>완료 {stats.completed}건 / 만료 {stats.expired}건</span>
-          </div>
+          <span style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", whiteSpace: "nowrap" }}>오늘 날짜 : {todayStr}</span>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexShrink: 0 }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", cursor: "pointer", fontSize: 13, color: "#334155", background: "#fff", whiteSpace: "nowrap" }}>
               📎 {selectedFile ? selectedFile.name.slice(0, 12) + "..." : "CSV 파일 선택"}
@@ -232,7 +235,10 @@ export default function SafetyTrainingPage() {
               {uploadLoading ? "업로드 중..." : "업로드"}
             </button>
             {uploadMessage && <span style={{ fontSize: 12, color: uploadMessage.includes("실패") ? "#ef4444" : "#22c55e", whiteSpace: "nowrap" }}>{uploadMessage}</span>}
-            <input type="text" className="st-search-input" placeholder="이름 검색" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ width: 160 }} />
+            <div className="st-search-box">
+              <input type="text" className="st-search-input" placeholder="이름 검색" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              <span className="st-search-icon">🔍</span>
+            </div>
           </div>
         </div>
       )}
@@ -253,9 +259,9 @@ export default function SafetyTrainingPage() {
       <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.05)", overflow: "hidden" }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", padding: "20px 24px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span>{currentUser?.emp_role === "member" ? `${currentUser.emp_name}님의 안전 교육 현황` : "직원별 교육 현황 (만료일 표시)"}</span>
-          {currentUser?.emp_role === "member" && <span style={{ fontSize: 13, fontWeight: "normal", color: "#64748b" }}>오늘 날짜 : 2026.06.15</span>}
+          {currentUser?.emp_role === "member" && <span style={{ fontSize: 13, fontWeight: "normal", color: "#64748b" }}>오늘 날짜 : {todayStr}</span>}
         </div>
-        <div style={{ overflowX: "auto" }}>
+        <div style={{ overflowX: "auto", maxHeight: "520px", overflowY: "auto" }}>
           <table className="st-table">
             <thead>
               <tr>

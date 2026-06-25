@@ -6,24 +6,70 @@ interface DocumentsTableProps {
   documents: DocFile[];
   handleDownload: (doc: DocFile) => void;
   handleDelete: (doc: DocFile) => void;
+  searchQuery: string;
+  setSearchQuery: (val: string) => void;
+  sortField: 'file_name' | 'file_created_at' | 'file_size' | 'file_extension' | 'uploader';
+  sortOrder: 'asc' | 'desc';
+  toggleSort: (field: 'file_name' | 'file_created_at' | 'file_size' | 'file_extension' | 'uploader') => void;
 }
 
-export function DocumentsTable({ documents, handleDownload, handleDelete }: DocumentsTableProps) {
+export function DocumentsTable({
+  documents,
+  handleDownload,
+  handleDelete,
+  searchQuery,
+  setSearchQuery,
+  sortField,
+  sortOrder,
+  toggleSort,
+}: DocumentsTableProps) {
   const formatSize = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   const formatDate = (dt: string) => dt?.replace("T", " ").substring(0, 16).replace(/-/g, ".") ?? "-";
 
+  const renderSortableHeader = (
+    label: string,
+    field: 'file_name' | 'file_created_at' | 'file_size' | 'file_extension' | 'uploader'
+  ) => {
+    const isActive = sortField === field;
+    return (
+      <th
+        className={styles.sortableHeader}
+        onClick={() => toggleSort(field)}
+      >
+        {label}
+        {isActive ? (
+          <span className={styles.sortActive}>{sortOrder === "asc" ? "▲" : "▼"}</span>
+        ) : (
+          <span className={styles.sortIndicator}>⇅</span>
+        )}
+      </th>
+    );
+  };
+
   return (
     <div className={styles.docTableCard}>
-      <div style={{ padding: "20px 24px 12px", fontWeight: 700 }}>내 문서 목록 ({documents.length})</div>
+      <div className={styles.docTableTopBar}>
+        <div className={styles.docTableTitle}>내 문서 목록 ({documents.length})</div>
+        <div className={styles.docTableSearchWrapper}>
+          <input
+            type="text"
+            className={styles.docTableSearchInput}
+            placeholder="파일명 검색..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <span className={styles.docTableSearchIcon}>🔍</span>
+        </div>
+      </div>
       <div className={styles.docTableWrapper}>
         <table className={styles.docTable}>
           <thead>
             <tr>
-              <th>파일명</th>
-              <th>파일 유형</th>
-              <th>크기</th>
-              <th>업로드 날짜</th>
-              <th>업로더</th>
+              {renderSortableHeader("파일명", "file_name")}
+              {renderSortableHeader("파일 유형", "file_extension")}
+              {renderSortableHeader("크기", "file_size")}
+              {renderSortableHeader("업로드 날짜", "file_created_at")}
+              {renderSortableHeader("업로더", "uploader")}
               <th>작업</th>
             </tr>
           </thead>

@@ -11,7 +11,7 @@ interface Employee {
   emp_date: string;
 }
 
-const ITEMS_PER_PAGE = 6;
+const ITEMS_PER_PAGE = 9;
 
 interface TeamManagementProps {
   onShowToast: (msg: string) => void;

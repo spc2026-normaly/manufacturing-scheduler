@@ -9,9 +9,11 @@ export function useSafetyTraining() {
   const [currentUser, setCurrentUser] = useState<{ emp_id: string; emp_name: string; emp_role: string; login_id: string } | null>(null);
   const [isForbidden, setIsForbidden] = useState(false);
 
-  // Helper to calculate D-Day relative to base date 2026.06.15
+  // Helper to calculate D-Day relative to base date
   const calculateTrainingStatus = (expiredDateStr: string): { state: TrainingStatus["state"]; dday: string } => {
-    const baseDate = new Date("2026-06-15");
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const baseDate = new Date(todayStr);
     const targetDate = new Date(expiredDateStr);
     const diffTime = targetDate.getTime() - baseDate.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));

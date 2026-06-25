@@ -27,7 +27,7 @@ export function UploadSection({
   return (
     <div className={styles.docUploadCard}>
       <div className={styles.docCardHeader}>
-        <span className={styles.docCardTitle}>템플릿 다운</span>
+        <span className={styles.docCardTitle}>파일 업로드</span>
       </div>
       <div
         className={`${styles.docDropzone} ${dragActive ? styles.active : ""}`}

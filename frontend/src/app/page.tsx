@@ -30,6 +30,7 @@ export default function DashboardPage() {
     calendarDays,
     selectedDayTasks,
     selectedDayChecks,
+    documentsCount,
   } = useDashboard();
 
   return (
@@ -42,6 +43,7 @@ export default function DashboardPage() {
         employeesCount={employeesCount}
         completionRate={completionRate}
         upcomingCount={upcomingCount}
+        documentsCount={documentsCount}
       />
 
       {/* ── Row 2: Calendar & Details ── */}

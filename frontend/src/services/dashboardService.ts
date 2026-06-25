@@ -40,3 +40,7 @@ export async function fetchCalendarSummary(
     headers: getAuthHeaders(),
   });
 }
+
+export async function fetchDocuments(): Promise<Response> {
+  return fetch("/api/documents", { headers: getAuthHeaders() });
+}

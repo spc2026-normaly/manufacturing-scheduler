@@ -7,6 +7,8 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: 310px;
+  align-self: start;
 }
 .eqAlarmTitle {
   font-size: 15px;
@@ -34,4 +36,12 @@
   background-color: var(--border, #f1f5f9);
   margin: 4px 0;
   border: none;
+}
+.eqAlarmList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 4px;
 }

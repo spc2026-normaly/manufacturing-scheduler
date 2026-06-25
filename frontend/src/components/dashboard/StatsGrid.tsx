@@ -5,12 +5,14 @@ interface StatsGridProps {
   employeesCount: number;
   completionRate: number;
   upcomingCount: number;
+  documentsCount: number;
 }
 
 export function StatsGrid({
   employeesCount,
   completionRate,
   upcomingCount,
+  documentsCount,
 }: StatsGridProps) {
   return (
     <div className={styles.statsRow}>
@@ -62,7 +64,7 @@ export function StatsGrid({
           <span className={styles.statCardTitle}>업로드 문서</span>
         </div>
         <div className={styles.statCardBody}>
-          <span className={styles.statNumber}>36</span>
+          <span className={styles.statNumber}>{documentsCount}</span>
           <span className={styles.statUnit}>개</span>
         </div>
         <div className={styles.statCardFooter}>

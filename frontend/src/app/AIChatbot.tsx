@@ -311,6 +311,20 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
 
   const handleSuggestionClick = (text: string) => handleSend(text);
 
+  const handleDownload = (fileId: string, fileName: string) => {
+    const token = localStorage.getItem("token");
+    fetch(`/api/documents/${fileId}/download`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        a.click();
+      });
+  };
+
   const handleClose = () => {
     setIsOpen(false);
     setIsExpanded(false);

@@ -1196,12 +1196,19 @@ button {
 .toast-container {
   position: fixed;
   bottom: 20px;
-  left: 20px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   z-index: 1000;
   pointer-events: none;
+}
+
+.toast-container.login-toast {
+  left: 20px;
+}
+
+.toast-container.app-toast {
+  left: 270px;
 }
 
 .toast-message {
@@ -1308,31 +1315,35 @@ button {
 }
 
 .tm-search-box {
-  display: flex;
-  align-items: center;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 6px 10px;
-  background: #f8fafc;
-  gap: 6px;
+  position: relative;
+  width: 220px;
 }
 
 .tm-search-input {
-  border: none;
+  width: 100%;
+  padding: 6px 32px 6px 12px;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  font-size: 13px;
   outline: none;
-  background: transparent;
-  font-size: 12.5px;
-  color: var(--text-primary);
-  width: 160px;
+  background-color: var(--bg-main, #ffffff);
+  color: var(--text-main, #1e293b);
+  transition: all 0.2s ease;
 }
 
-.tm-search-input::placeholder {
-  color: var(--text-muted);
+.tm-search-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
 }
 
 .tm-search-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-muted, #94a3b8);
+  pointer-events: none;
 }
 
 .tm-add-btn {

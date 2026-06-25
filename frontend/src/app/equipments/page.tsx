@@ -8,7 +8,7 @@ import { EquipmentTable } from "../../components/equipments/EquipmentTable";
 import styles from "./page.module.css";
 
 export default function EquipmentsPage() {
-  const { equipments, upcomingEquipments, loading, metrics } = useEquipments();
+  const { equipments, upcomingEquipments, loading, metrics, refetch } = useEquipments();
 
   if (loading) {
     return (
@@ -36,7 +36,7 @@ export default function EquipmentsPage() {
       </div>
 
       {/* ── Bottom Table Section ── */}
-      <EquipmentTable equipments={equipments} />
+      <EquipmentTable equipments={equipments} onRefetch={refetch} />
     </div>
   );
 }

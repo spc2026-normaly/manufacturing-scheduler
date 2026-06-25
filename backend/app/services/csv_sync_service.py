@@ -127,6 +127,20 @@ def _sync_equipments(db: Session, rows: list[dict[str, str]]) -> dict:
         if not eq_id or not eq_name:
             continue
 
+        # check_date 파싱 (NULL 방지)
+        check_date_val = date.today()
+        if key_map["check_date"]:
+            parsed_check_date = _parse_date(row.get(key_map["check_date"]))
+            if parsed_check_date:
+                check_date_val = parsed_check_date
+
+        # recent_check_date 파싱 (NULL 방지)
+        recent_check_date_val = date.today()
+        if key_map["recent_check_date"]:
+            parsed_recent_check_date = _parse_date(row.get(key_map["recent_check_date"]))
+            if parsed_recent_check_date:
+                recent_check_date_val = parsed_recent_check_date
+
         payloads.append(
             {
                 "eq_id": eq_id,
@@ -151,16 +165,8 @@ def _sync_equipments(db: Session, rows: list[dict[str, str]]) -> dict:
                     if key_map["eq_status"]
                     else "정상"
                 ),
-                "check_date": (
-                    _parse_date(row.get(key_map["check_date"]))
-                    if key_map["check_date"]
-                    else date.today()
-                ),
-                "recent_check_date": (
-                    _parse_date(row.get(key_map["recent_check_date"]))
-                    if key_map["recent_check_date"]
-                    else date.today()
-                ),
+                "check_date": check_date_val,
+                "recent_check_date": recent_check_date_val,
             }
         )
 

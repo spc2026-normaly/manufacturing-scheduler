@@ -81,6 +81,11 @@ def download_file_from_r2(r2_key: str) -> bytes:
     return response["Body"].read()
 
 
+def delete_file_from_r2(r2_key: str) -> None:
+    client = get_r2_client()
+    client.delete_object(Bucket=settings.R2_BUCKET_NAME, Key=r2_key)
+
+
 def list_r2_objects(prefix: str) -> list[dict]:
     client = get_r2_client()
     normalized = normalize_prefix(prefix)

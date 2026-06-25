@@ -1,6 +1,6 @@
 from typing import List, Optional
 from datetime import date, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -68,3 +68,33 @@ def delete_equipment(eq_id: str, db: Session = Depends(get_db), _: object = Depe
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="장비를 찾을 수 없습니다.")
     db.delete(equipment)
     db.commit()
+
+
+@router.post("/upload-csv", summary="CSV 파일로 장비 정보 동기화")
+def upload_equipment_csv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: object = Depends(PermissionChecker(Permission.EQUIPMENT_WRITE))
+):
+    """CSV 파일을 업로드하여 모든 장비 데이터를 동기화합니다.
+    기존 데이터는 삭제되고 새 데이터로 완전히 대체됩니다.
+    """
+    from app.services.csv_sync_service import _read_rows, _sync_equipments
+    
+    try:
+        file_content = file.file.read()
+        rows = _read_rows(file_content)
+        result = _sync_equipments(db, rows)
+        db.commit()
+        return {
+            "status": "success",
+            "message": f"장비 정보가 동기화되었습니다. ({result['rows']}개)",
+            "filename": file.filename,
+            "rows_processed": result['rows']
+        }
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"CSV 처리 오류: {str(e)}")

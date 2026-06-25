@@ -35,11 +35,7 @@ async def upload_document(
     file: UploadFile = File(...),
     category: DocumentCategory = Query(default="rag"),
     db: Session = Depends(get_db),
-<<<<<<< HEAD
-    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
-=======
     current_claims = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
->>>>>>> feature/safety-training-csv
 ):
     from app.models.employee import Employee
     emp = db.query(Employee).filter(Employee.login_id == current_claims.login_id).first()

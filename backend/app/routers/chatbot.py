@@ -184,3 +184,138 @@ def download_file(filename: str):
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
     return FileResponse(path=filepath, filename=filename, media_type="text/csv")
+
+# ─── DB 문서 찾아서 R2에서 수정 후 재업로드 ──────────────────
+@router.post("/chatbot/edit-r2-document", response_model=ChatResponse, summary="R2 문서 수정")
+async def edit_r2_document(
+    message: str = Form(...),
+    db: Session = Depends(get_db),
+) -> ChatResponse:
+    """
+    DB에서 파일명으로 문서 찾기 → R2 다운로드 → GPT 수정 → 버전 이름으로 R2 재업로드
+    예시: "직원안전교육.csv에서 정우진 교육1을 미완료로 바꿔줘"
+    """
+    from app.models.document import Document
+    from app.services.r2_service import upload_bytes_to_r2
+    from app.services.document_service import get_document_bytes, _upsert_document_metadata
+    from app.services.csv_sync_service import sync_schedule_input_csv
+    from sqlalchemy import select
+    import re
+
+    # 1. 메시지에서 파일명 추출 (따옴표 또는 .csv 확장자로 감지)
+    file_name_match = re.search(r'[\[「『]?([^\]」』\s]+\.csv)[\]」』]?', message, re.IGNORECASE)
+    if not file_name_match:
+        return ChatResponse(reply="파일명을 찾을 수 없습니다. 예시: '직원안전교육.csv에서 정우진 교육1을 미완료로 바꿔줘'", source="gpt")
+
+    file_name = file_name_match.group(1)
+
+    # 2. DB에서 파일 찾기
+    doc = db.execute(select(Document).where(Document.file_name == file_name)).scalar_one_or_none()
+    if not doc:
+        return ChatResponse(reply=f"'{file_name}' 파일을 DB에서 찾을 수 없습니다. 파일명을 정확히 입력해주세요.", source="gpt")
+
+    # 3. R2에서 파일 다운로드
+    try:
+        _, file_bytes = get_document_bytes(db=db, file_id=doc.file_id)
+    except Exception as e:
+        return ChatResponse(reply=f"R2에서 파일을 가져오는 중 오류가 발생했습니다: {e}", source="gpt")
+
+    # 4. CSV 디코딩
+    decoded = ""
+    for encoding in ["utf-8-sig", "utf-8", "cp949", "euc-kr"]:
+        try:
+            decoded = file_bytes.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if not decoded:
+        return ChatResponse(reply="CSV 파일 인코딩을 인식할 수 없습니다.", source="gpt")
+
+    # 5. GPT에 수정 요청
+    prompt = f"""사용자 요청: {message}
+
+[파일: {file_name}]
+{decoded}
+
+위 CSV 파일을 사용자 요청에 맞게 수정해주세요.
+응답 형식:
+REPLY: (사용자에게 보여줄 메시지)
+CSV:
+(수정된 CSV 내용, 헤더 포함, 모든 행)
+
+CSV 생성 시 주의사항:
+- 미완료로 변경 시 해당 교육의 이수일, 만료일 컬럼 둘 다 빈 값("")으로 변경
+- 모든 행을 포함해야 함
+- 원본 데이터 형식 유지
+- JSON이나 코드블록 없이 순수 CSV만 반환"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+    )
+
+    result = response.choices[0].message.content.strip()
+    result = result.replace("```csv", "").replace("```", "").strip()
+
+    if "CSV:" not in result:
+        return ChatResponse(reply=result, source="gpt")
+
+    parts = result.split("CSV:", 1)
+    reply_text = parts[0].replace("REPLY:", "").strip()
+    csv_data = parts[1].strip()
+
+    # 6. 버전 이름 생성 (예: 직원안전교육_v0.1.csv)
+    base_name = file_name.rsplit(".", 1)[0]
+    ext = file_name.rsplit(".", 1)[1]
+
+    # 기존 버전 찾기
+    existing_versions = db.execute(
+        select(Document).where(Document.file_name.like(f"{base_name}_v%"))
+    ).scalars().all()
+
+    version_num = len(existing_versions) + 1
+    new_file_name = f"{base_name}_v0.{version_num}.{ext}"
+
+    # 7. R2 경로 설정 (원본과 같은 폴더)
+    original_prefix = "/".join(doc.file_path.split("/")[:-1]) + "/"
+    new_r2_key = f"{original_prefix}{new_file_name}"
+
+    # 8. 수정된 CSV를 바이트로 변환
+    new_bytes = csv_data.encode("utf-8-sig")
+
+    # 9. R2에 업로드
+    try:
+        upload_bytes_to_r2(data=new_bytes, r2_key=new_r2_key, content_type="text/csv")
+    except Exception as e:
+        return ChatResponse(reply=f"R2 업로드 중 오류가 발생했습니다: {e}", source="gpt")
+
+    # 10. DB에 새 문서 메타데이터 저장
+    from datetime import datetime
+    new_doc, _ = _upsert_document_metadata(
+        db,
+        uploader=doc.uploader,
+        file_name=new_file_name,
+        file_size=len(new_bytes),
+        file_extension=ext,
+        file_path=new_r2_key,
+        file_updated_at=datetime.utcnow(),
+    )
+
+    # 11. 안전교육 CSV면 DB도 업데이트
+    if "안전교육" in file_name or "safety" in file_name.lower():
+        try:
+            sync_result = sync_schedule_input_csv(
+                db=db, file_name=new_file_name, file_bytes=new_bytes
+            )
+            reply_text += f"\n✅ 안전교육 DB도 업데이트되었습니다."
+        except Exception as e:
+            reply_text += f"\n⚠️ 안전교육 DB 업데이트 실패: {e}"
+
+    db.commit()
+
+    # 12. 다운로드 링크 반환
+    reply_text += f"\n\n📥 DOWNLOAD:{new_doc.file_id}:{new_file_name}"
+
+    return ChatResponse(reply=reply_text, source="gpt")

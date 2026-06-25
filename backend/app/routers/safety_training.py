@@ -1,17 +1,20 @@
 import csv
 import io
 import uuid
-from datetime import date as date_type
+from datetime import date as date_type, datetime
 from typing import List, Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
+from app.config import settings
 from app.database import get_db
 from app.models.safety_training import SafetyTraining, SafetyTrainingMetadata
 from app.routers.auth import Permission, PermissionChecker
 from app.schemas.scheduler import SafetyTrainingCreate, SafetyTrainingResponse
+from app.services.r2_service import upload_bytes_to_r2, build_r2_key
+from app.services.document_service import _upsert_document_metadata
 
 router = APIRouter(prefix="/api/safety-trainings", tags=["Safety Training"])
 
@@ -55,13 +58,28 @@ async def upload_safety_training_csv(
     if not decoded:
         raise HTTPException(status_code=400, detail="파일 인코딩을 인식할 수 없습니다.")
 
+    # R2에 업로드
+    try:
+        r2_key = build_r2_key(file.filename, settings.R2_SAFETY_MANAGE_PREFIX)
+        upload_bytes_to_r2(data=content, r2_key=r2_key, content_type="text/csv")
+        _upsert_document_metadata(
+            db,
+            uploader="emp000",
+            file_name=file.filename,
+            file_size=len(content),
+            file_extension="csv",
+            file_path=r2_key,
+            file_updated_at=datetime.utcnow(),
+        )
+    except Exception as e:
+        print(f"R2 업로드 실패: {e}")
+
     reader = csv.DictReader(io.StringIO(decoded))
     rows = list(reader)
 
     if not rows:
         raise HTTPException(status_code=400, detail="CSV 파일이 비어있습니다.")
 
-    # 교육명 추출
     headers = reader.fieldnames or []
     training_names = []
     for h in headers:
@@ -71,12 +89,10 @@ async def upload_safety_training_csv(
             if name not in training_names:
                 training_names.append(name)
 
-    # DB에서 실제 emp_id 목록 가져오기 (대소문자 매핑용)
     from app.models.employee import Employee
     employees = db.execute(select(Employee)).scalars().all()
     emp_id_map = {e.emp_id.upper(): e.emp_id for e in employees}
 
-    # 기존 데이터 삭제
     db.query(SafetyTraining).delete()
 
     created = []
@@ -105,7 +121,6 @@ async def upload_safety_training_csv(
             except Exception:
                 continue
 
-    # 메타데이터 업데이트
     db.query(SafetyTrainingMetadata).delete()
     db.add(SafetyTrainingMetadata(training_names=training_names))
     db.commit()

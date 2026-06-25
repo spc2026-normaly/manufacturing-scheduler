@@ -315,11 +315,11 @@ def _sync_tasks_and_required_equipments(
     }
 
 
+
 def _sync_safety_training(db: Session, rows: list[dict[str, str]]) -> dict:
     if not rows:
         _truncate_tables(db, ["safety_training"])
-        return {"table": "safety_training", "rows": 0}
-
+        return {"table": "safety_training", "rows": 0, "training_names": []}
     first = rows[0]
     emp_key = _match_key(first, ["사원ID", "emp_id", "사번"])
     if not emp_key:
@@ -359,6 +359,9 @@ def _sync_safety_training(db: Session, rows: list[dict[str, str]]) -> dict:
                 if expire_key:
                     training_pairs.append((base, key, expire_key))
 
+    # 추출한 교육명 리스트 저장
+    training_names = [pair[0] for pair in training_pairs]
+
     payloads = []
     today = date.today()
     for row in rows:
@@ -385,7 +388,7 @@ def _sync_safety_training(db: Session, rows: list[dict[str, str]]) -> dict:
                 }
             )
 
-    _truncate_tables(db, ["safety_training"])
+    _truncate_tables(db, ["safety_training", "safety_training_metadata"])
     if payloads:
         db.execute(
             text("""
@@ -396,8 +399,26 @@ def _sync_safety_training(db: Session, rows: list[dict[str, str]]) -> dict:
                 """),
             payloads,
         )
-    return {"table": "safety_training", "rows": len(payloads)}
 
+
+    # 교육명 목록을 metadata 테이블에 저장
+    if training_names:
+        import json
+        metadata_id = f"meta_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            text("""
+                INSERT INTO safety_training_metadata (metadata_id, training_names, updated_at)
+                VALUES (:metadata_id, :training_names, :updated_at)
+                """),
+            {
+                "metadata_id": metadata_id,
+                "training_names": json.dumps(training_names),
+                "updated_at": today,
+            },
+        )
+    
+    db.commit()
+    return {"table": "safety_training", "rows": len(payloads), "training_names": training_names}
 
 def sync_schedule_input_csv(db: Session, file_name: str, file_bytes: bytes) -> dict:
     normalized_name = _normalize(file_name)

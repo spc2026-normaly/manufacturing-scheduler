@@ -1474,7 +1474,7 @@ button {
 .tm-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   padding: 12px 20px;
   border-top: 1px solid var(--border);
   background: #fff;
@@ -1489,7 +1489,7 @@ button {
 .tm-pagination {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 8px;
 }
 
 .tm-page-nav,

@@ -35,12 +35,17 @@ async def upload_document(
     file: UploadFile = File(...),
     category: DocumentCategory = Query(default="rag"),
     db: Session = Depends(get_db),
+<<<<<<< HEAD
     current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
+=======
+    current_claims = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
+>>>>>>> feature/safety-training-csv
 ):
-    """파일 업로드 + R2 저장 + 벡터 임베딩 처리"""
+    from app.models.employee import Employee
+    emp = db.query(Employee).filter(Employee.login_id == current_claims.login_id).first()
     return await process_uploaded_document(
         db,
-        uploader=current_emp.emp_id,
+        uploader=emp.emp_id,
         upload=file,
         category=category,
     )

@@ -19,6 +19,7 @@ from app.services.document_service import (
     process_uploaded_document,
     sync_r2_documents,
 )
+from app.services.r2_service import delete_file_from_r2
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
@@ -37,13 +38,21 @@ async def upload_document(
     db: Session = Depends(get_db),
     current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
 ):
-    """파일 업로드 + R2 저장 + 벡터 임베딩 처리"""
-    return await process_uploaded_document(
+    """파일 업로드 + R2 저장 + 벡터 임베딩 처리 + R2 문서 동기화"""
+    res = await process_uploaded_document(
         db,
         uploader=current_emp.emp_id,
         upload=file,
         category=category,
     )
+    
+    # 파일 업로드 성공 후 R2 문서 리스트 자동 동기화
+    try:
+        sync_r2_documents(db, uploader=current_emp.emp_id)
+    except Exception as e:
+        print(f"⚠️ Failed to sync documents after upload: {str(e)}")
+        
+    return res
 
 @router.post("/sync-r2", summary="R2 문서 동기화")
 def sync_documents_from_r2(
@@ -88,7 +97,7 @@ def delete_document(
     db: Session = Depends(get_db),
     current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_WRITE))
 ):
-    """문서 메타데이터만 DB에서 삭제 (R2는 수동으로 삭제 필요)"""
+    """문서 메타데이터 DB 및 R2 저장소에서 삭제"""
     doc = db.query(Document).filter(
         Document.file_id == file_id,
         Document.uploader == current_emp.emp_id
@@ -98,5 +107,18 @@ def delete_document(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="문서를 찾을 수 없거나 삭제 권한이 없습니다."
         )
+    
+    # R2 저장소에서 파일 삭제
+    try:
+        delete_file_from_r2(doc.file_path)
+    except Exception as e:
+        print(f"⚠️ Failed to delete {doc.file_path} from R2: {str(e)}")
+
     db.delete(doc)
     db.commit()
+
+    # 파일 삭제 성공 후 R2 문서 리스트 자동 동기화
+    try:
+        sync_r2_documents(db, uploader=current_emp.emp_id)
+    except Exception as e:
+        print(f"⚠️ Failed to sync documents after delete: {str(e)}")

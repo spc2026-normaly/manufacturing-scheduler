@@ -19,6 +19,8 @@ from app.models.employee import Employee
 from app.models.chat_session import ChatSession
 from app.models.chatbot_log import ChatbotLog
 from app.routers.auth import ALGORITHM, get_employee_by_login_id
+from app.services.token_service import log_token_usage
+
 
 router = APIRouter(prefix="/api", tags=["chatbot"])
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -147,7 +149,7 @@ def _build_context(chunks: list[dict]) -> str:
     return "\n".join(lines).strip()
 
 
-def _answer_with_openai(question: str, context: str, history: list[dict] = None) -> str:
+def _answer_with_openai(db: Session, question: str, context: str, history: list[dict] = None) -> str:
     """OpenAI GPT-4o-mini를 사용해 문서 컨텍스트 기반 답변 생성 (대화 이력 포함)"""
     if not settings.OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다.")
@@ -183,6 +185,19 @@ def _answer_with_openai(question: str, context: str, history: list[dict] = None)
         messages=messages,
         temperature=0.2,
     )
+    
+    # Log token usage
+    usage = response.usage
+    if usage:
+        log_token_usage(
+            db=db,
+            feature="chatbot",
+            model_name=settings.OPENAI_CHAT_MODEL,
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            total_tokens=usage.total_tokens,
+        )
+        
     return response.choices[0].message.content or "답변을 생성하지 못했습니다."
 
 
@@ -221,7 +236,7 @@ async def chat(
     context = _build_context(chunks)
     try:
         # OpenAI LLM으로 답변 생성
-        reply = _answer_with_openai(question=body.message, context=context, history=history)
+        reply = _answer_with_openai(db=db, question=body.message, context=context, history=history)
         _log_chatbot_interaction(db, session_id, body.message, reply, "rag")
         return ChatResponse(reply=reply, source="rag", session_id=session_id)
     except Exception:
@@ -303,6 +318,18 @@ CSV 수정 요청이 없는 일반 질문은 그냥 답변해주세요."""
         messages=messages,
         temperature=0.3,
     )
+
+    # Log token usage
+    usage = response.usage
+    if usage:
+        log_token_usage(
+            db=db,
+            feature="chatbot_csv_edit",
+            model_name="gpt-4o-mini",
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            total_tokens=usage.total_tokens,
+        )
 
     result = response.choices[0].message.content.strip()
 

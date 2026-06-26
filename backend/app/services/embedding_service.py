@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from sqlalchemy.orm import Session
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from openai import OpenAI
@@ -8,6 +9,7 @@ from pypdf import PdfReader
 from docx import Document as DocxDocument
 
 from app.config import settings
+from app.services.token_service import log_token_usage
 
 SUPPORTED_EMBED_EXTENSIONS = {"pdf", "txt", "csv", "md", "docx"}
 
@@ -49,7 +51,7 @@ def split_text_to_chunks(text: str) -> list[str]:
     return [chunk for chunk in chunks if chunk]
 
 
-def create_embeddings(chunks: list[str]) -> list[list[float]]:
+def create_embeddings(chunks: list[str], db: Session | None = None) -> list[list[float]]:
     if not settings.OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다.")
 
@@ -61,10 +63,23 @@ def create_embeddings(chunks: list[str]) -> list[list[float]]:
         model=settings.OPENAI_EMBEDDING_MODEL,
         input=chunks,
     )
+    
+    # Log token usage
+    usage = response.usage
+    if db and usage:
+        log_token_usage(
+            db=db,
+            feature="document_embedding",
+            model_name=settings.OPENAI_EMBEDDING_MODEL,
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=0,
+            total_tokens=usage.total_tokens,
+        )
+        
     return [item.embedding for item in response.data]
 
 
-def create_query_embedding(query: str) -> list[float]:
+def create_query_embedding(query: str, db: Session | None = None) -> list[float]:
     if not settings.OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다.")
 
@@ -73,13 +88,26 @@ def create_query_embedding(query: str) -> list[float]:
         model=settings.OPENAI_EMBEDDING_MODEL,
         input=[query],
     )
+    
+    # Log token usage
+    usage = response.usage
+    if db and usage:
+        log_token_usage(
+            db=db,
+            feature="query_embedding",
+            model_name=settings.OPENAI_EMBEDDING_MODEL,
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=0,
+            total_tokens=usage.total_tokens,
+        )
+        
     return response.data[0].embedding
 
 
 def chunk_and_embed(
-    file_bytes: bytes, file_extension: str
+    file_bytes: bytes, file_extension: str, db: Session | None = None
 ) -> tuple[list[str], list[list[float]]]:
     text = extract_text_from_bytes(file_bytes=file_bytes, file_extension=file_extension)
     chunks = split_text_to_chunks(text)
-    embeddings = create_embeddings(chunks)
+    embeddings = create_embeddings(chunks, db=db)
     return chunks, embeddings

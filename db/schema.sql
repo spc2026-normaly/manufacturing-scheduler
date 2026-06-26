@@ -5,6 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- 1. Clean up existing tables (with CASCADE to handle dependencies)
+DROP TABLE IF EXISTS token_usage_logs CASCADE;
 DROP TABLE IF EXISTS chatbot_logs CASCADE;
 DROP TABLE IF EXISTS chat_sessions CASCADE;
 DROP TABLE IF EXISTS document_chunks CASCADE;
@@ -178,6 +179,18 @@ CREATE TABLE chatbot_logs (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT PK_CHATBOT_LOGS PRIMARY KEY (log_id),
     CONSTRAINT FK_chat_sessions_TO_chatbot_logs FOREIGN KEY (session_id) REFERENCES chat_sessions (session_id) ON DELETE CASCADE
+);
+
+-- token_usage_logs table
+CREATE TABLE token_usage_logs (
+    id VARCHAR(255) NOT NULL,
+    feature VARCHAR(100) NOT NULL,
+    model_name VARCHAR(100) NOT NULL,
+    prompt_tokens INTEGER NOT NULL,
+    completion_tokens INTEGER NOT NULL,
+    total_tokens INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_TOKEN_USAGE_LOGS PRIMARY KEY (id)
 );
 
 -- 3. Comments for documentation and code clarity

@@ -5,6 +5,7 @@ from openai import OpenAI
 from sqlalchemy.orm import Session
 from app.config import settings
 from app.services.schedule_pipeline.rag import search_safety_rules
+from app.services.token_service import log_token_usage
 
 def get_qualified_workers(db: Session, training_df: pd.DataFrame) -> Dict[str, List[str]]:
     """
@@ -42,6 +43,19 @@ def get_qualified_workers(db: Session, training_df: pd.DataFrame) -> Dict[str, L
                 temperature=0.0,
                 response_format={"type": "json_object"}
             )
+            
+            # Log token usage
+            usage = response.usage
+            if usage:
+                log_token_usage(
+                    db=db,
+                    feature="schedule_qualification",
+                    model_name=settings.OPENAI_CHAT_MODEL,
+                    prompt_tokens=usage.prompt_tokens,
+                    completion_tokens=usage.completion_tokens,
+                    total_tokens=usage.total_tokens,
+                )
+                
             result_text = response.choices[0].message.content.strip()
             factory_reqs = json.loads(result_text)
             extracted = True
@@ -159,6 +173,19 @@ def get_daily_work_minutes(db: Session) -> int:
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0
         )
+        
+        # Log token usage
+        usage = response.usage
+        if usage:
+            log_token_usage(
+                db=db,
+                feature="schedule_daily_minutes",
+                model_name=settings.OPENAI_CHAT_MODEL,
+                prompt_tokens=usage.prompt_tokens,
+                completion_tokens=usage.completion_tokens,
+                total_tokens=usage.total_tokens,
+            )
+            
         ans = response.choices[0].message.content.strip()
         import re
         match = re.search(r'\d+', ans)
@@ -202,6 +229,19 @@ def get_work_days_from_rag(db: Session) -> List[int]:
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0
         )
+        
+        # Log token usage
+        usage = response.usage
+        if usage:
+            log_token_usage(
+                db=db,
+                feature="schedule_work_days",
+                model_name=settings.OPENAI_CHAT_MODEL,
+                prompt_tokens=usage.prompt_tokens,
+                completion_tokens=usage.completion_tokens,
+                total_tokens=usage.total_tokens,
+            )
+            
         ans = response.choices[0].message.content.strip()
         import json
         import re

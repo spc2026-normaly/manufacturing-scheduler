@@ -168,7 +168,7 @@ def _run_embedding_pipeline(db: Session, doc: Document, file_bytes: bytes) -> st
     try:
         doc.embedding_status = "processing"
         chunks, embeddings = chunk_and_embed(
-            file_bytes=file_bytes, file_extension=doc.file_extension
+            file_bytes=file_bytes, file_extension=doc.file_extension, db=db
         )
         stored = _replace_document_chunks(
             db=db,
@@ -355,7 +355,7 @@ def search_rag_chunks(db: Session, query: str, top_k: int | None = None) -> list
         return []
 
     k = top_k or settings.RAG_TOP_K
-    query_embedding = create_query_embedding(query)
+    query_embedding = create_query_embedding(query, db=db)
 
     stmt = (
         select(

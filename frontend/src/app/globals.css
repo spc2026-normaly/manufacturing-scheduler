@@ -240,6 +240,7 @@ button {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-width: 0;
 }
 
 /* ─── Topbar (Header - White Background) ─── */
@@ -341,6 +342,7 @@ button {
   flex: 1;
   padding: 24px 32px 32px 32px;
   position: relative;
+  min-width: 0;
 }
 
 /* Placeholder Page */
@@ -1208,22 +1210,24 @@ button {
 }
 
 .toast-container.app-toast {
-  left: 270px;
+  right: 24px;
+  top: 85px;
+  bottom: auto;
 }
 
 .toast-message {
   background: #0f172a;
   color: #ffffff;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 8px 16px;
+  padding: 12px 20px;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   pointer-events: all;
-  min-width: 220px;
+  min-width: 260px;
 }
 
 .toast-icon {
@@ -1410,9 +1414,7 @@ button {
 }
 
 .tm-cell-pw {
-  display: flex !important;
-  align-items: center;
-  gap: 8px;
+  text-align: left;
 }
 
 .tm-eye-btn {

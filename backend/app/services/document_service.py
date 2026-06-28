@@ -8,7 +8,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import and_, select, text
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.core.config import settings
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.services.embedding_service import (

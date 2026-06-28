@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from app.database import get_db
+from app.core.database import get_db
 from app.models.equipment import Equipment
 from app.routers.auth import Permission, PermissionChecker
 from app.schemas.scheduler import EquipmentCreate, EquipmentResponse

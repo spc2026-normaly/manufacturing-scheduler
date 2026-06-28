@@ -5,7 +5,7 @@ from fastapi import APIRouter, status, Depends, Query, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.core.database import get_db
 
 from app.schemas.scheduler import (
     EmployeeCreate, EmployeeResponse,

@@ -26,7 +26,7 @@ from ortools.sat.python import cp_model
 from sqlalchemy.orm import Session
 
 try:
-    from app.logger import logger
+    from app.utils.logger import logger
 except ImportError:
     import logging
     logger = logging.getLogger(__name__)

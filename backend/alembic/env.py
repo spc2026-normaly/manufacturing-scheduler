@@ -14,8 +14,8 @@ if config.config_file_name is not None:
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app.config import settings
-from app.database import Base
+from app.core.config import settings
+from app.core.database import Base
 import app.models  # noqa: F401 — 모든 모델이 Base에 등록되도록 import
 
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

@@ -8,7 +8,7 @@ from typing import BinaryIO
 import boto3
 from botocore.client import Config
 
-from app.config import settings
+from app.core.config import settings
 
 
 def _require_r2_settings() -> None:

@@ -10,7 +10,7 @@ from fastapi import (
     status,
 )
 
-from app.database import get_db
+from app.core.database import get_db
 from app.models.document import Document
 from app.routers.auth import Permission, PermissionChecker, TokenData
 from app.services.document_service import (

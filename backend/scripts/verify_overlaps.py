@@ -3,7 +3,7 @@ import sys
 from collections import defaultdict
 
 sys.path.append("/app")
-from app.database import SessionLocal
+from app.core.database import SessionLocal
 
 db = SessionLocal()
 try:

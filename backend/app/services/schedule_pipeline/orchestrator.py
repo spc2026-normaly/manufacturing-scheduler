@@ -29,7 +29,7 @@ from app.services.schedule_pipeline.gpt_scheduler import (
 from app.services.schedule_pipeline.conflict_resolver import resolve_conflicts
 
 try:
-    from app.logger import logger
+    from app.utils.logger import logger
 except ImportError:
     import logging
     logger = logging.getLogger(__name__)

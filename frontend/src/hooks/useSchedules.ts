@@ -304,7 +304,7 @@ export function useSchedules() {
         const res = await fetchOrdersApi();
         if (res.ok) {
           const data = await res.json();
-          const nums = data.map((o: any) => o.order_num);
+          const nums = Array.from(new Set(data.map((o: any) => o.order_num).filter(Boolean))) as string[];
           setOrdersList(nums);
         }
       } catch (e) {

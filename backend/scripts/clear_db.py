@@ -2,7 +2,7 @@ from sqlalchemy import text
 import sys
 
 sys.path.append("/app")
-from app.database import SessionLocal
+from app.core.database import SessionLocal
 
 db = SessionLocal()
 try:

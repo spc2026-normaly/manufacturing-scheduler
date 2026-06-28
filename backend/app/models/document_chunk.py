@@ -4,7 +4,7 @@ from sqlalchemy import String, Integer, Text, DateTime, ForeignKeyConstraint, fu
 from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 from pgvector.sqlalchemy import Vector
 
-from app.database import Base
+from app.core.database import Base
 
 
 class DocumentChunk(Base):

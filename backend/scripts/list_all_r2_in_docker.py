@@ -4,7 +4,7 @@ import sys
 
 # Load env vars
 sys.path.append("/app")
-from app.config import settings
+from app.core.config import settings
 
 print(f"R2_ENDPOINT: {settings.R2_ENDPOINT}")
 print(f"R2_BUCKET_NAME: {settings.R2_BUCKET_NAME}")

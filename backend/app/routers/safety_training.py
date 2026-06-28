@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status,
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from app.config import settings
-from app.database import get_db
+from app.core.config import settings
+from app.core.database import get_db
 from app.models.safety_training import SafetyTraining, SafetyTrainingMetadata
 from app.routers.auth import Permission, PermissionChecker
 from app.schemas.scheduler import SafetyTrainingCreate, SafetyTrainingResponse

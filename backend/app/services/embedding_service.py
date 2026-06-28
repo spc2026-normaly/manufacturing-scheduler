@@ -8,7 +8,7 @@ from openai import OpenAI
 from pypdf import PdfReader
 from docx import Document as DocxDocument
 
-from app.config import settings
+from app.core.config import settings
 from app.services.token_service import log_token_usage
 
 SUPPORTED_EMBED_EXTENSIONS = {"pdf", "txt", "csv", "md", "docx"}

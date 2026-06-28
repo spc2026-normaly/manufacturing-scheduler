@@ -11,8 +11,8 @@ from jose import jwt
 from openai import OpenAI
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.database import get_db
+from app.core.config import settings
+from app.core.database import get_db
 from app.schemas.chatbot import ChatRequest, ChatResponse, ChatMessageItem, ChatSessionItem
 from app.services.document_service import search_rag_chunks
 from app.models.employee import Employee

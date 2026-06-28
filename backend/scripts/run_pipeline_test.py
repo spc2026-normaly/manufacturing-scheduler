@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 sys.path.append("/app")
 
-from app.database import SessionLocal
+from app.core.database import SessionLocal
 from app.services.schedule_pipeline.orchestrator import generate_and_upload_schedule
 from app.services.schedule_pipeline.csv_io import parse_schedule_csv_directly, download_file_from_r2
 

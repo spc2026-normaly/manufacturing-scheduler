@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import String, BigInteger, Text, Boolean, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
-from app.database import Base
+from app.core.database import Base
 
 class Document(Base):
     __tablename__ = "documents"

@@ -12,8 +12,8 @@ from pydantic import BaseModel
 from openai import OpenAI
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from app.config import settings
-from app.database import get_db
+from app.core.config import settings
+from app.core.database import get_db
 from app.models.document import Document
 from app.models.employee import Employee
 from app.routers.auth import get_current_employee

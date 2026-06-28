@@ -2,8 +2,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.config import settings
-from app.database import engine
+from app.core.config import settings
+from app.core.database import engine
 from app.models import Base
 from app.routers.health import router as health_router
 from app.routers.scheduler_api import router as scheduler_router

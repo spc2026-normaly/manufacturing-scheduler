@@ -3,12 +3,12 @@ import pandas as pd
 from typing import Dict, List
 from openai import OpenAI
 from sqlalchemy.orm import Session
-from app.config import settings
+from app.core.config import settings
 from app.services.schedule_pipeline.rag import search_safety_rules
 from app.services.token_service import log_token_usage
 
 try:
-    from app.logger import logger
+    from app.utils.logger import logger
 except ImportError:
     import logging
     logger = logging.getLogger(__name__)

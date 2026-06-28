@@ -5,7 +5,7 @@ import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.core.database import get_db
 from app.models.employee import Employee
 from app.routers.auth import Permission, PermissionChecker
 from app.schemas.employee import (

@@ -4,7 +4,7 @@ import io
 import pandas as pd
 
 sys.path.append("/app")
-from app.config import settings
+from app.core.config import settings
 from app.services.schedule_pipeline.csv_io import decode_csv_bytes
 
 s3 = boto3.client(

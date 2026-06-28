@@ -443,7 +443,6 @@ def _sync_safety_training(db: Session, rows: list[dict[str, str]]) -> dict:
             },
         )
     
-    db.commit()
     return {"table": "safety_training", "rows": len(payloads), "training_names": training_names}
 
 def sync_schedule_input_csv(db: Session, file_name: str, file_bytes: bytes) -> dict:
@@ -453,16 +452,26 @@ def sync_schedule_input_csv(db: Session, file_name: str, file_bytes: bytes) -> d
     if "직원정보" in normalized_name:
         return {"action": "skip", "file": file_name, "reason": "DB 동기화 대상 아님"}
 
-    if "장비정보" in normalized_name:
-        result = _sync_equipments(db, rows)
-        return {"action": "synced", "file": file_name, **result}
+    # R2 다운로드 후 DB에 데이터를 싱크할 때, 일괄 트랜잭션(All-or-Nothing) 보장
+    # 중간 과정 오류 발생 시 truncate 등 테이블 삭제 작업까지 전부 안전하게 롤백
+    try:
+        if "장비정보" in normalized_name:
+            result = _sync_equipments(db, rows)
+            db.commit()
+            return {"action": "synced", "file": file_name, **result}
 
-    if "테스트및공정목록" in normalized_name or "테스트및공정" in normalized_name:
-        result = _sync_tasks_and_required_equipments(db, rows)
-        return {"action": "synced", "file": file_name, **result}
+        if "테스트및공정목록" in normalized_name or "테스트및공정" in normalized_name:
+            result = _sync_tasks_and_required_equipments(db, rows)
+            db.commit()
+            return {"action": "synced", "file": file_name, **result}
 
-    if "직원교육이력" in normalized_name:
-        result = _sync_safety_training(db, rows)
-        return {"action": "synced", "file": file_name, **result}
+        if "직원교육이력" in normalized_name:
+            result = _sync_safety_training(db, rows)
+            db.commit()
+            return {"action": "synced", "file": file_name, **result}
+
+    except Exception as e:
+        db.rollback()
+        raise RuntimeError(f"CSV DB 동기화 중 오류 발생 (롤백 완료): {str(e)}")
 
     return {"action": "skip", "file": file_name, "reason": "매핑되지 않은 CSV 파일"}

@@ -74,10 +74,17 @@ def create_employee(body: EmployeeCreate, db: Session = Depends(get_db), _: obje
         emp_role=body.emp_role,
         emp_date=body.emp_date,
     )
-    db.add(emp)
-    db.commit()
-    db.refresh(emp)
-    return emp
+    try:
+        db.add(emp)
+        db.commit()
+        db.refresh(emp)
+        return emp
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"팀원 등록 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.get("/{emp_id}", response_model=EmployeeResponse, summary="팀원 상세 조회")
@@ -111,9 +118,16 @@ def update_employee(emp_id: str, body: EmployeeUpdate, db: Session = Depends(get
     if body.login_pw is not None:
         emp.login_pw = _hash_pw(body.login_pw)
 
-    db.commit()
-    db.refresh(emp)
-    return emp
+    try:
+        db.commit()
+        db.refresh(emp)
+        return emp
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"팀원 정보 수정 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.delete("/{emp_id}", status_code=status.HTTP_204_NO_CONTENT, summary="팀원 삭제 (하드)")
@@ -123,8 +137,15 @@ def delete_employee(emp_id: str, db: Session = Depends(get_db), _: object = Depe
     if not emp:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="팀원을 찾을 수 없습니다.")
 
-    db.delete(emp)
-    db.commit()
+    try:
+        db.delete(emp)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"팀원 삭제 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.patch("/{emp_id}/password", response_model=EmployeeResponse, summary="팀원 비밀번호 전용 변경")
@@ -140,7 +161,14 @@ def change_employee_password(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="팀원을 찾을 수 없습니다.")
 
     emp.login_pw = _hash_pw(body.new_password)
-    db.commit()
-    db.refresh(emp)
-    return emp
+    try:
+        db.commit()
+        db.refresh(emp)
+        return emp
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"비밀번호 변경 중 오류가 발생했습니다: {str(e)}"
+        )
 

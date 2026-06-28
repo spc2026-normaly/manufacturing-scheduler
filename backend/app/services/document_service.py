@@ -204,27 +204,31 @@ async def process_uploaded_document(
         content_type=upload.content_type or guess_content_type(upload.filename),
     )
 
-    document, changed = _upsert_document_metadata(
-        db,
-        uploader=uploader,
-        file_name=upload.filename,
-        file_size=len(data),
-        file_extension=extension,
-        file_path=r2_key,
-        file_updated_at=_utc_now(),
-    )
-
-    message = "메타데이터만 저장됨"
-    if category == "rag" and changed:
-        message = _run_embedding_pipeline(db=db, doc=document, file_bytes=data)
-    elif category == "schedule_input" and changed and extension == "csv":
-        sync_result = sync_schedule_input_csv(
-            db=db, file_name=upload.filename, file_bytes=data
+    try:
+        document, changed = _upsert_document_metadata(
+            db,
+            uploader=uploader,
+            file_name=upload.filename,
+            file_size=len(data),
+            file_extension=extension,
+            file_path=r2_key,
+            file_updated_at=_utc_now(),
         )
-        message = f"CSV 동기화 완료: {sync_result}"
 
-    db.commit()
-    db.refresh(document)
+        message = "메타데이터만 저장됨"
+        if category == "rag" and changed:
+            message = _run_embedding_pipeline(db=db, doc=document, file_bytes=data)
+        elif category == "schedule_input" and changed and extension == "csv":
+            sync_result = sync_schedule_input_csv(
+                db=db, file_name=upload.filename, file_bytes=data
+            )
+            message = f"CSV 동기화 완료: {sync_result}"
+
+        db.commit()
+        db.refresh(document)
+    except Exception as e:
+        db.rollback()
+        raise RuntimeError(f"문서 처리 및 DB 연동 중 오류 발생 (롤백 완료): {str(e)}")
 
     return {
         "message": "uploaded",

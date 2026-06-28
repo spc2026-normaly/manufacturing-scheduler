@@ -43,10 +43,17 @@ def get_equipment(eq_id: str, db: Session = Depends(get_db), _: object = Depends
 @router.post("", response_model=EquipmentResponse, status_code=status.HTTP_201_CREATED, summary="장비 등록")
 def create_equipment(data: EquipmentCreate, db: Session = Depends(get_db), _: object = Depends(PermissionChecker(Permission.EQUIPMENT_WRITE))):
     equipment = Equipment(**data.model_dump())
-    db.add(equipment)
-    db.commit()
-    db.refresh(equipment)
-    return equipment
+    try:
+        db.add(equipment)
+        db.commit()
+        db.refresh(equipment)
+        return equipment
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"장비 등록 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.put("/{eq_id}", response_model=EquipmentResponse, summary="장비 수정")
@@ -56,9 +63,16 @@ def update_equipment(eq_id: str, data: EquipmentCreate, db: Session = Depends(ge
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="장비를 찾을 수 없습니다.")
     for key, value in data.model_dump().items():
         setattr(equipment, key, value)
-    db.commit()
-    db.refresh(equipment)
-    return equipment
+    try:
+        db.commit()
+        db.refresh(equipment)
+        return equipment
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"장비 수정 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.delete("/{eq_id}", status_code=status.HTTP_204_NO_CONTENT, summary="장비 삭제")
@@ -66,8 +80,15 @@ def delete_equipment(eq_id: str, db: Session = Depends(get_db), _: object = Depe
     equipment = db.get(Equipment, eq_id)
     if not equipment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="장비를 찾을 수 없습니다.")
-    db.delete(equipment)
-    db.commit()
+    try:
+        db.delete(equipment)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"장비 삭제 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.post("/upload-csv", summary="CSV 파일로 장비 정보 동기화")

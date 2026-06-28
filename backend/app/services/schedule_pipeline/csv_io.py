@@ -117,16 +117,16 @@ def parse_schedule_csv_directly(
     col_equip = find_column(headers, ["필요장비", "equipments", "equipment", "장비"])
     
     # 기존 일정 및 배정, 주문 데이터 삭제 (새로 적재하기 위해 초기화)
+    # 단일 트랜잭션(All-or-Nothing) 유지를 위해 즉시 commit하지 않고, 루프 끝까지 에러 없이 완료된 경우에만 최종 일괄 커밋합니다.
     try:
         # PostgreSQL 외래키 관계상 schedule_assignments -> schedules -> orders 순으로 삭제
         db.execute(text("DELETE FROM schedule_assignments"))
         db.execute(text("DELETE FROM schedules"))
         db.execute(text("DELETE FROM orders"))
-        db.commit()
-        print("🗑️ 기존 일정, 배정 현황 및 주문 데이터를 성공적으로 초기화했습니다.")
+        print("🗑️ 기존 일정, 배정 현황 및 주문 데이터를 성공적으로 비웠습니다. (최종 완료 시 커밋 예정)")
     except Exception as del_err:
         db.rollback()
-        print(f"⚠️ 기존 일정 데이터 삭제 실패: {str(del_err)}")
+        raise RuntimeError(f"기존 일정 데이터 초기화 실패: {str(del_err)}")
 
     saved_count = 0
     order_map.clear()  # 기존 맵 초기화하여 신규 ID 생성 유도

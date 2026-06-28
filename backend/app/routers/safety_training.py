@@ -146,10 +146,17 @@ def get_safety_training(training_id: str, db: Session = Depends(get_db), _: obje
 @router.post("", response_model=SafetyTrainingResponse, status_code=status.HTTP_201_CREATED, summary="안전 교육 등록")
 def create_safety_training(data: SafetyTrainingCreate, db: Session = Depends(get_db), _: object = Depends(PermissionChecker(Permission.SAFETY_WRITE))):
     training = SafetyTraining(**data.model_dump())
-    db.add(training)
-    db.commit()
-    db.refresh(training)
-    return training
+    try:
+        db.add(training)
+        db.commit()
+        db.refresh(training)
+        return training
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"교육 등록 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.put("/{training_id}", response_model=SafetyTrainingResponse, summary="안전 교육 수정")
@@ -159,9 +166,16 @@ def update_safety_training(training_id: str, data: SafetyTrainingCreate, db: Ses
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="교육 내역을 찾을 수 없습니다.")
     for key, value in data.model_dump().items():
         setattr(training, key, value)
-    db.commit()
-    db.refresh(training)
-    return training
+    try:
+        db.commit()
+        db.refresh(training)
+        return training
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"교육 수정 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.delete("/{training_id}", status_code=status.HTTP_204_NO_CONTENT, summary="안전 교육 삭제")
@@ -169,5 +183,12 @@ def delete_safety_training(training_id: str, db: Session = Depends(get_db), _: o
     training = db.query(SafetyTraining).filter(SafetyTraining.training_id == training_id).first()
     if not training:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="교육 내역을 찾을 수 없습니다.")
-    db.delete(training)
-    db.commit()
+    try:
+        db.delete(training)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"교육 삭제 중 오류가 발생했습니다: {str(e)}"
+        )

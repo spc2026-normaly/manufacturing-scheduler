@@ -118,8 +118,15 @@ def delete_document(
     except Exception as e:
         print(f"⚠️ Failed to delete {doc.file_path} from R2: {str(e)}")
 
-    db.delete(doc)
-    db.commit()
+    try:
+        db.delete(doc)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"문서 데이터베이스 삭제 실패: {str(e)}"
+        )
 
     # 파일 삭제 성공 후 R2 문서 리스트 자동 동기화
     try:

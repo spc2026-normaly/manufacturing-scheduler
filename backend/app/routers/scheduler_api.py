@@ -288,6 +288,202 @@ def get_schedules_summary(
     }
 
 
+@router.get("/schedules/analytics", summary="생산 일정 상세 분석 (이용률·병목·위험주문)")
+def get_schedules_analytics(
+    date_param: Optional[date] = Query(None, alias="date", description="기준 월 (YYYY-MM-DD)"),
+    db: Session = Depends(get_db)
+):
+    """
+    월별 생산 일정 상세 분석 API.
+    반환 항목:
+      - worker_utilization  : 작업자별 이용률 (%)
+      - equipment_utilization: 장비별 이용률 (%)
+      - avg_idle_minutes    : 평균 Idle 시간 (분)
+      - bottleneck_tasks    : 병목 공정 Top 5 (대기시간 기준)
+      - at_risk_orders      : 납기 위험 주문 (잔여 납기 ≤ 3일)
+      - on_time_rate        : 납기 준수율 (%)
+      - makespan_days       : 전체 일정 기간 (일)
+    """
+    base_date = date_param or date(2026, 7, 1)
+    first_day = base_date.replace(day=1)
+    if first_day.month == 12:
+        next_first = first_day.replace(year=first_day.year + 1, month=1, day=1)
+    else:
+        next_first = first_day.replace(month=first_day.month + 1, day=1)
+    last_day = next_first - timedelta(days=1)
+
+    start_dt = datetime.combine(first_day, time.min)
+    end_dt   = datetime.combine(last_day, time.max)
+    # 월 근무 가용 시간: 영업일 × 7시간(점심 제외) = 약 22일 × 420분
+    workdays_in_month = 22
+    available_mins_per_person = workdays_in_month * 420  # 7h×60
+
+    # ── 1. 작업자 이용률 ─────────────────────────────────────────────────────
+    worker_sql = """
+        SELECT sa.employee_id, SUM(s.duration_minutes) as worked_mins
+        FROM schedule_assignments sa
+        JOIN schedules s ON sa.schedule_id = s.id
+        WHERE s.start_date >= :start_dt AND s.end_date <= :end_dt
+        GROUP BY sa.employee_id
+    """
+    worker_rows = db.execute(text(worker_sql), {"start_dt": start_dt, "end_dt": end_dt}).mappings().all()
+    emp_name_rows = db.execute(text("SELECT emp_id, emp_name FROM employees")).mappings().all()
+    emp_names_map = {r["emp_id"]: r["emp_name"] for r in emp_name_rows}
+
+    worker_utilization = []
+    for r in worker_rows:
+        emp_id   = r["employee_id"]
+        worked   = r["worked_mins"] or 0
+        pct      = round(min(worked / max(available_mins_per_person, 1) * 100, 100), 1)
+        worker_utilization.append({
+            "emp_id":   emp_id,
+            "emp_name": emp_names_map.get(emp_id, emp_id),
+            "worked_minutes": worked,
+            "utilization_pct": pct,
+        })
+    worker_utilization.sort(key=lambda x: -x["utilization_pct"])
+
+    # ── 2. 장비 이용률 ─────────────────────────────────────────────────────
+    equip_sql = """
+        SELECT s.equipment_id,
+               SUM(s.duration_minutes) as used_mins,
+               COUNT(DISTINCT DATE(s.start_date)) as used_days
+        FROM schedules s
+        WHERE s.start_date >= :start_dt AND s.end_date <= :end_dt
+          AND s.equipment_id IS NOT NULL AND s.equipment_id != ''
+        GROUP BY s.equipment_id
+    """
+    equip_rows = db.execute(text(equip_sql), {"start_dt": start_dt, "end_dt": end_dt}).mappings().all()
+    equipment_utilization = []
+    for r in equip_rows:
+        eq_id  = r["equipment_id"]
+        used   = r["used_mins"] or 0
+        avail  = workdays_in_month * 420
+        pct    = round(min(used / max(avail, 1) * 100, 100), 1)
+        equipment_utilization.append({
+            "equipment_id": eq_id,
+            "used_minutes": used,
+            "utilization_pct": pct,
+        })
+    equipment_utilization.sort(key=lambda x: -x["utilization_pct"])
+
+    # ── 3. 공정별 평균 Idle / 대기시간 (병목 Top 5) ───────────────────────
+    task_sql = """
+        SELECT s.task_name, s.factory,
+               AVG(s.duration_minutes) as avg_duration,
+               COUNT(*) as task_count,
+               SUM(s.duration_minutes) as total_mins
+        FROM schedules s
+        WHERE s.start_date >= :start_dt AND s.end_date <= :end_dt
+        GROUP BY s.task_name, s.factory
+        ORDER BY total_mins DESC
+        LIMIT 10
+    """
+    task_rows = db.execute(text(task_sql), {"start_dt": start_dt, "end_dt": end_dt}).mappings().all()
+    bottleneck_tasks = [
+        {
+            "task_name":     r["task_name"],
+            "factory":       _to_factory_label(r["factory"]),
+            "avg_duration":  round(r["avg_duration"] or 0, 1),
+            "task_count":    r["task_count"],
+            "total_minutes": r["total_mins"] or 0,
+        }
+        for r in task_rows[:5]
+    ]
+
+    # ── 4. 납기 위험 주문 (잔여 납기 ≤ 5일, 미완료) ────────────────────────
+    today = date.today()
+    risk_sql = """
+        SELECT s.order_num, MAX(s.due_date) as due_date,
+               MAX(s.end_date) as last_end,
+               MAX(s.completion_status) as status
+        FROM schedules s
+        WHERE s.due_date >= :today
+        GROUP BY s.order_num
+        HAVING MAX(s.completion_status) != '납기내완료'
+           OR MAX(s.completion_status) IS NULL
+    """
+    try:
+        risk_rows = db.execute(text(risk_sql), {"today": today}).mappings().all()
+    except Exception:
+        # completion_status 컬럼 없는 경우 납기 컬럼만으로 처리
+        risk_sql2 = """
+            SELECT s.order_num, MAX(s.due_date) as due_date,
+                   MAX(s.end_date) as last_end
+            FROM schedules s
+            WHERE s.due_date >= :today
+            GROUP BY s.order_num
+        """
+        risk_rows = db.execute(text(risk_sql2), {"today": today}).mappings().all()
+
+    at_risk_orders = []
+    for r in risk_rows:
+        due  = r["due_date"]
+        if due is None:
+            continue
+        due_d = due if isinstance(due, date) else datetime.strptime(str(due)[:10], "%Y-%m-%d").date()
+        remaining = (due_d - today).days
+        if remaining <= 5:
+            at_risk_orders.append({
+                "order_num":       r["order_num"],
+                "due_date":        str(due_d),
+                "days_remaining":  remaining,
+                "risk_level":      "위험" if remaining <= 2 else "경고",
+            })
+    at_risk_orders.sort(key=lambda x: x["days_remaining"])
+
+    # ── 5. 납기 준수율 ─────────────────────────────────────────────────────
+    ontime_sql = """
+        SELECT
+          COUNT(DISTINCT order_num) as total_orders,
+          SUM(CASE WHEN MAX(end_date) <= MAX(due_date) THEN 1 ELSE 0 END) as ontime_count
+        FROM (
+          SELECT order_num, MAX(end_date) as end_date, MAX(due_date) as due_date
+          FROM schedules
+          WHERE start_date >= :start_dt AND end_date <= :end_dt
+          GROUP BY order_num
+        ) sub
+    """
+    try:
+        ot = db.execute(text(ontime_sql), {"start_dt": start_dt, "end_dt": end_dt}).mappings().first()
+        total_orders = ot["total_orders"] or 0
+        ontime_count = ot["ontime_count"] or 0
+        on_time_rate = round(ontime_count / max(total_orders, 1) * 100, 1)
+    except Exception:
+        on_time_rate = 0.0
+        total_orders = 0
+
+    # ── 6. Makespan ────────────────────────────────────────────────────────
+    span_sql = """
+        SELECT MIN(DATE(start_date)) as first_start,
+               MAX(DATE(end_date))   as last_end
+        FROM schedules
+        WHERE start_date >= :start_dt AND end_date <= :end_dt
+    """
+    span = db.execute(text(span_sql), {"start_dt": start_dt, "end_dt": end_dt}).mappings().first()
+    makespan_days = 0
+    if span and span["first_start"] and span["last_end"]:
+        try:
+            fs = span["first_start"] if isinstance(span["first_start"], date) else datetime.strptime(str(span["first_start"]), "%Y-%m-%d").date()
+            le = span["last_end"]    if isinstance(span["last_end"], date)    else datetime.strptime(str(span["last_end"]), "%Y-%m-%d").date()
+            makespan_days = (le - fs).days + 1
+        except Exception:
+            pass
+
+    return {
+        "worker_utilization":    worker_utilization,
+        "equipment_utilization": equipment_utilization,
+        "bottleneck_tasks":      bottleneck_tasks,
+        "at_risk_orders":        at_risk_orders,
+        "on_time_rate":          on_time_rate,
+        "total_orders":          total_orders,
+        "makespan_days":         makespan_days,
+        "avg_worker_utilization": round(
+            sum(w["utilization_pct"] for w in worker_utilization) / max(len(worker_utilization), 1), 1
+        ),
+    }
+
+
 @router.get("/schedules", response_model=List[ScheduleResponse], summary="생산 일정 목록 조회")
 def get_schedules():
     """배정된 생산 일정 목록을 조회합니다. (API 스텁)"""

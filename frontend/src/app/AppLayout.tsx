@@ -4,15 +4,44 @@ import React, { useState, useEffect, createContext, useContext } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import AIChatbot from "./AIChatbot";
 
-// Navigation items definition
-const NAV_ITEMS = [
+// Navigation items definition with grouping support
+interface MenuItem {
+  icon: string;
+  label: string;
+  path: string;
+}
+
+interface MenuGroup {
+  isGroup: true;
+  label: string;
+  icon: string;
+  children: MenuItem[];
+}
+
+type NavItem = MenuItem | MenuGroup;
+
+const NAV_ITEMS: NavItem[] = [
   { icon: "🏠", label: "메인", path: "dashboard" },
   { icon: "📄", label: "내 문서", path: "documents" },
-  { icon: "🏭", label: "일정 수립", path: "schedule-builder" },
-  { icon: "📅", label: "양산 일정", path: "schedules" },
+  {
+    isGroup: true,
+    label: "일정",
+    icon: "📅",
+    children: [
+      { icon: "🏭", label: "일정 수립", path: "schedule-builder" },
+      { icon: "📅", label: "양산 일정", path: "schedules" },
+    ]
+  },
   { icon: "👥", label: "팀원 관리", path: "employees" },
-  { icon: "📊", label: "안전 교육 현황", path: "safety-training" },
-  { icon: "⚙️", label: "장비 관리", path: "equipments" },
+  {
+    isGroup: true,
+    label: "작업 관리",
+    icon: "🛠️",
+    children: [
+      { icon: "📊", label: "안전 교육 현황", path: "safety-training" },
+      { icon: "⚙️", label: "장비 관리", path: "equipments" },
+    ]
+  },
   { icon: "⚙️", label: "설정", path: "settings" },
 ];
 
@@ -405,21 +434,58 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <span className="sidebar-section-label">메뉴</span>
         <div className="sidebar-nav-list">
-          {NAV_ITEMS.filter((item) => {
-            if (user?.emp_role === "member") {
-              return item.path === "schedules" || item.path === "safety-training" || item.path === "schedule-builder";
+          {NAV_ITEMS.map((item) => {
+            if ("isGroup" in item && item.isGroup) {
+              // Group rendering: 일정, 작업 관리 등
+              const filteredChildren = item.children.filter((child) => {
+                if (user?.emp_role === "member") {
+                  return child.path === "schedules" || child.path === "safety-training" || child.path === "schedule-builder";
+                }
+                return true;
+              });
+
+              if (filteredChildren.length === 0) return null;
+
+              return (
+                <div key={item.label} className="nav-group-container">
+                  <div className="nav-group-header">
+                    <span className="nav-item-icon" style={{ marginRight: "8px" }}>{item.icon}</span>
+                    <span>{item.label}</span>
+                  </div>
+                  <div className="nav-group-children">
+                    {filteredChildren.map((child) => (
+                      <button
+                        key={child.label}
+                        onClick={() => handleMenuClick(child.label, child.path)}
+                        className={`nav-item-sub ${activeMenu === child.label ? "active" : ""}`}
+                      >
+                        <span className="nav-item-icon">{child.icon}</span>
+                        <span className="nav-item-label">{child.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            } else {
+              // Single item rendering
+              const singleItem = item as MenuItem;
+              if (user?.emp_role === "member") {
+                if (singleItem.path !== "schedules" && singleItem.path !== "safety-training" && singleItem.path !== "schedule-builder") {
+                  return null;
+                }
+              }
+              return (
+                <button
+                  key={singleItem.label}
+                  onClick={() => handleMenuClick(singleItem.label, singleItem.path)}
+                  className={`nav-item ${activeMenu === singleItem.label ? "active" : ""}`}
+                >
+                  <span className="nav-item-icon">{singleItem.icon}</span>
+                  <span className="nav-item-label">{singleItem.label}</span>
+                </button>
+              );
             }
-            return true;
-          }).map((item) => (
-            <button
-              key={item.label}
-              onClick={() => handleMenuClick(item.label, item.path)}
-              className={`nav-item ${activeMenu === item.label ? "active" : ""}`}
-            >
-              <span className="nav-item-icon">{item.icon}</span>
-              <span className="nav-item-label">{item.label}</span>
-            </button>
-          ))}
+          })}
         </div>
 
         <div className="sidebar-footer">

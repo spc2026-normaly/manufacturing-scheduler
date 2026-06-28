@@ -28,3 +28,8 @@ export async function fetchSummaryApi(dateStr: string): Promise<Response> {
 export async function fetchOrdersApi(): Promise<Response> {
   return fetch("/api/orders");
 }
+
+export async function fetchAnalyticsApi(dateStr: string): Promise<Response> {
+  const params = new URLSearchParams({ date: dateStr });
+  return fetch(`/api/schedules/analytics?${params.toString()}`);
+}

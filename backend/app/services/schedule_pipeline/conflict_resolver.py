@@ -95,6 +95,27 @@ def _first_n_bits(mask: int, n: int) -> int:
     return result
 
 
+def _left_pack_mask(free_mask: int, length: int) -> int:
+    """Left Packing: 가용 슬롯 중 가장 앞쪽(이른 시각) length개를 선택.
+    _first_n_bits와 동일하지만 의미를 명확히 하기 위해 별도 정의.
+    - 연속 블록을 찾지 못하더라도 가장 이른 슬롯부터 채워
+      Idle Time을 최소화하는 핵심 전략.
+    """
+    return _first_n_bits(free_mask, length)
+
+
+def _atc_score(due_date: "date", today: "date", proc_minutes: int, avg_proc_days: float, k: float = 2.0) -> float:
+    """ATC (Apparent Tardiness Cost) 우선순위 점수.
+    높을수록 먼저 처리.
+    priority = exp(-max(d-t,0) / (k*avg_p)) / p
+    """
+    remaining_days = max((due_date - today).days, 0)
+    proc_days = max(proc_minutes / 480.0, 0.001)   # 분 → 일 환산
+    avg_p = max(avg_proc_days, 0.001)
+    import math as _math
+    return _math.exp(-remaining_days / (k * avg_p)) / proc_days
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # 메인 스케줄러
 # ══════════════════════════════════════════════════════════════════════════════
@@ -277,11 +298,24 @@ def resolve_conflicts(
     for o in orders:
         o["total_estimated_minutes"] = _estimate_total_minutes(o)
 
-    # 1순위: 납기일 빠른 것 (EDD), 2순위: 총 작업량 적은 것 (SPT)
-    orders.sort(key=lambda o: (o["due_date"], o["total_estimated_minutes"]))
+    # ── ATC (Apparent Tardiness Cost) 우선순위 ────────────────────────────────
+    # 납기가 급하고 처리시간이 짧은 작업을 자동으로 우선 처리.
+    # EDD+SPT보다 현실적인 APS 표준 Dispatch Rule.
+    avg_proc_days = (
+        sum(o["total_estimated_minutes"] for o in orders)
+        / max(len(orders), 1)
+        / 480.0
+    )
+    today_ref = start_date
+    for o in orders:
+        o["atc_score"] = _atc_score(
+            o["due_date"], today_ref,
+            o["total_estimated_minutes"], avg_proc_days
+        )
+    orders.sort(key=lambda o: -o["atc_score"])   # 높을수록 우선
     logger.info(
-        "EDD+SPT 우선순위 정렬 완료: "
-        + str([o["order_num"] for o in orders])
+        "ATC 우선순위 정렬 완료: "
+        + str([f"{o['order_num']}(ATC={o['atc_score']:.3f})" for o in orders])
     )
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -312,7 +346,9 @@ def resolve_conflicts(
     # ──────────────────────────────────────────────────────────────────────────
     worker_mask: Dict[date, Dict[str, int]] = {}
     equip_timeline: Dict[date, Dict[str, List[int]]] = {}
-    worker_total_load: Dict[str, int] = {}
+    worker_total_load: Dict[str, int] = {}      # 누적 총 작업 분
+    worker_day_load:   Dict[str, Dict[date, int]] = {}   # 날짜별 당일 작업 분
+    worker_last_slot:  Dict[str, Dict[date, int]] = {}   # 날짜별 마지막 사용 슬롯
 
     def _init_worker(d: date, w: str) -> None:
         worker_mask.setdefault(d, {})
@@ -394,10 +430,17 @@ def resolve_conflicts(
                     if req_equips else 10
                 )
                 num_to_assign = max(1, min(len(eligible), max_workers))
-                # 누적 부하 오름차순 정렬 후 상위 n명 배정
-                eligible_sorted = sorted(
-                    eligible, key=lambda e: worker_total_load.get(e, 0)
-                )
+
+                # ── Worker Score 기반 배정 ────────────────────────────────────
+                # score = α×누적이용률 + β×당일작업분 + γ×마지막슬롯
+                # 점수 낮은(=유휴 시간 많은) 작업자 우선 배정 → Load Balancing
+                def _worker_score(w_id: str) -> float:
+                    total_load = worker_total_load.get(w_id, 0)
+                    day_load   = worker_day_load.get(w_id, {}).get(order_start_date, 0)
+                    last_slot  = worker_last_slot.get(w_id, {}).get(order_start_date, 0)
+                    return 1.0 * total_load + 0.5 * day_load + 0.3 * last_slot
+
+                eligible_sorted = sorted(eligible, key=_worker_score)
                 assigned = eligible_sorted[:num_to_assign]
                 task_assignments[t["task_id"]] = assigned
 
@@ -461,28 +504,37 @@ def resolve_conflicts(
                             order_bottlenecks[order["order_num"]]["equipments"] += 1
                         continue
 
-                    # 소규모 작업: 연속 슬롯 우선 배정 (점심시간 분리로 최대 연속 블록은 300분)
+                    # ── Left Packing 슬롯 배정 전략 ──────────────────────────
+                    # 1) 소규모 작업: 연속 블록 탐색 우선
+                    #    - 연속 블록 없으면 → Left Pack (skip 대신 가능한 가장 앞쪽 슬롯 채움)
+                    #    - 이전 코드는 연속 실패 시 다음 날로 skip → 불필요한 Idle 발생
+                    # 2) 대규모 작업: Left Pack으로 가용 슬롯 최대한 채움
                     usable_slots = 300
                     is_small     = req_elapsed <= usable_slots
 
                     if is_small:
                         run_start = _find_contiguous_start(free_mask, req_elapsed)
-                        if run_start == -1:
-                            # 연속 배치 실패 원인 누적
-                            w_busy_cnt = _count_bits(worker_busy & WORK_MASK)
-                            eq_busy_cnt = _count_bits(equip_busy & WORK_MASK)
-                            order_bottlenecks.setdefault(order["order_num"], {"workers": 0, "equipments": 0})
-                            if w_busy_cnt >= eq_busy_cnt:
-                                order_bottlenecks[order["order_num"]]["workers"] += 1
-                            else:
-                                order_bottlenecks[order["order_num"]]["equipments"] += 1
-                            # 연속 불가 → 다음 날로
-                            continue
-                        alloc_mask = _make_run_mask(run_start, req_elapsed)
+                        if run_start >= 0:
+                            # 연속 블록 발견 → 연속 배정 (장비 셋업 효율 최적)
+                            alloc_mask = _make_run_mask(run_start, req_elapsed)
+                        else:
+                            # 연속 블록 없음 → Left Pack (가장 이른 가용 슬롯부터 채움)
+                            # 기존: 다음 날 skip → 개선: 당일 가용 슬롯 최대한 활용
+                            take = min(total_avail, req_elapsed)
+                            if take == 0:
+                                w_busy_cnt  = _count_bits(worker_busy & WORK_MASK)
+                                eq_busy_cnt = _count_bits(equip_busy & WORK_MASK)
+                                order_bottlenecks.setdefault(order["order_num"], {"workers": 0, "equipments": 0})
+                                if w_busy_cnt >= eq_busy_cnt:
+                                    order_bottlenecks[order["order_num"]]["workers"] += 1
+                                else:
+                                    order_bottlenecks[order["order_num"]]["equipments"] += 1
+                                continue
+                            alloc_mask = _left_pack_mask(free_mask, take)
                     else:
-                        # 대규모 작업: 비연속 허용, 가용 슬롯 최대한 사용
+                        # 대규모 작업: Left Pack으로 가용 슬롯 최대한 채움
                         take = min(total_avail, req_elapsed)
-                        alloc_mask = _first_n_bits(free_mask, take)
+                        alloc_mask = _left_pack_mask(free_mask, take)
 
                     alloc_slots = _slots_from_mask(alloc_mask)
                     if not alloc_slots:
@@ -491,6 +543,15 @@ def resolve_conflicts(
                     # 자원 점유 기록
                     for w in assigned_workers:
                         worker_mask[curr_date][w] |= alloc_mask
+                        # Worker Score 추적: 당일 작업 분 및 마지막 슬롯 갱신
+                        slot_count = len(alloc_slots)
+                        worker_day_load.setdefault(w, {})
+                        worker_day_load[w][curr_date] = worker_day_load[w].get(curr_date, 0) + slot_count
+                        worker_last_slot.setdefault(w, {})
+                        if alloc_slots:
+                            worker_last_slot[w][curr_date] = max(
+                                worker_last_slot[w].get(curr_date, 0), alloc_slots[-1]
+                            )
                     for eq in req_equips:
                         for m in alloc_slots:
                             equip_timeline[curr_date][eq][m] += 1
@@ -554,7 +615,52 @@ def resolve_conflicts(
             order["current_date"] = _next_workday(actual_step_end)
 
     # ──────────────────────────────────────────────────────────────────────────
-    # 11.5. 지연 원인 후처리 (Post-processing)
+    # 11.5. Dynamic Repacking — Forward 결과 Idle Gap 압축
+    # ──────────────────────────────────────────────────────────────────────────
+    #
+    # 동일 주문·작업자·날짜 내 세그먼트 간 Idle Gap을 제거하여
+    # 연속 블록으로 압축. 자원 마스크가 이미 확정된 상태이므로
+    # 시작 시각만 재계산하는 경량 후처리.
+    def _repack_schedule(rows: List[Dict]) -> List[Dict]:
+        from collections import defaultdict
+        # (주문번호, 작업ID, 날짜) 기준 세그먼트 그룹화
+        groups: Dict = defaultdict(list)
+        for idx, row in enumerate(rows):
+            key = (row["주문번호"], row["작업ID"], row["시작일"][:10])
+            groups[key].append((idx, row))
+
+        for key, items in groups.items():
+            if len(items) <= 1:
+                continue
+            # 시작 시각 오름차순 정렬
+            items.sort(key=lambda x: x[1]["시작일"])
+            # 첫 세그먼트 시작 시각 기준으로 압축
+            base_dt = datetime.strptime(items[0][1]["시작일"], "%Y-%m-%d %H:%M:%S")
+            cursor  = base_dt
+            for orig_idx, row in items:
+                dur_m = row["작업시간_분"]
+                new_start = cursor
+                new_end   = cursor + timedelta(minutes=dur_m)
+                # 점심(12:00–13:00) 건너뜀
+                lunch_s = base_dt.replace(hour=12, minute=0, second=0)
+                lunch_e = base_dt.replace(hour=13, minute=0, second=0)
+                if new_start < lunch_e and new_end > lunch_s:
+                    if new_start < lunch_s:
+                        overflow = (new_end - lunch_s).seconds // 60
+                        new_end  = lunch_e + timedelta(minutes=overflow)
+                    else:
+                        new_start = lunch_e
+                        new_end   = lunch_e + timedelta(minutes=dur_m)
+                rows[orig_idx]["시작일"] = new_start.strftime("%Y-%m-%d %H:%M:%S")
+                rows[orig_idx]["종료일"] = new_end.strftime("%Y-%m-%d %H:%M:%S")
+                cursor = new_end
+        return rows
+
+    schedule_rows = _repack_schedule(schedule_rows)
+    logger.info("Dynamic Repacking 완료 — Idle Gap 압축 적용됨.")
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 11.6. 지연 원인 후처리 (Post-processing)
     # ──────────────────────────────────────────────────────────────────────────
     order_final_dates = {}
     for row in schedule_rows:

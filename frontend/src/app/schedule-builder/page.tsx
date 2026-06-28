@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { AnalyticsPanel } from "../../components/schedules/AnalyticsPanel";
 import styles from "./page.module.css";
 
 // ─── 타입 정의 ────────────────────────────────────────────────
@@ -696,6 +697,12 @@ export default function ScheduleBuilderPage() {
           )}
         </div>
       )}
+
+      {/* 📊 생산 분석 대시보드 연동 */}
+      {phases !== "running" && (
+        <AnalyticsPanel dateStr="2026-07-01" refreshTrigger={result} />
+      )}
     </div>
   );
 }
+

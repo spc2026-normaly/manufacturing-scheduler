@@ -136,6 +136,8 @@ class EquipmentBase(BaseModel):
     eq_status: str = Field("정상", description="장비 상태 (정상, 점검 필요 등)")
     check_date: date = Field(..., description="점검 일자")
     recent_check_date: date = Field(..., description="최근 점검 일자")
+    durability: int = Field(0, description="내구도 (사용 횟수)")
+    rest_duration: int = Field(0, description="장비 휴식 시간 (분 단위)")
 
 class EquipmentCreate(EquipmentBase):
     pass

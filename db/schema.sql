@@ -109,9 +109,11 @@ CREATE TABLE equipments (
     eq_count INTEGER NOT NULL,
     available_eq_count INTEGER NOT NULL,
     check_cycle INTEGER NOT NULL, -- check cycle in days
-    eq_status VARCHAR(50) NOT NULL DEFAULT '?뺤긽', -- ?곹깭 (?? ?뺤긽, ?먭? ?꾩슂)
+    eq_status VARCHAR(50) NOT NULL DEFAULT '정상', -- 상태 (정상, 점검 필요 등)
     check_date DATE NOT NULL,
     recent_check_date DATE NOT NULL,
+    durability INTEGER NOT NULL DEFAULT 0,
+    rest_duration INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT PK_EQUIPMENTS PRIMARY KEY (eq_id)
 );
 
@@ -197,3 +199,5 @@ CREATE TABLE token_usage_logs (
 COMMENT ON COLUMN equipments.eq_status IS '장비 상태 (정상, 점검 필요 등)';
 COMMENT ON COLUMN equipments.check_cycle IS '점검 주기 (일단위)';
 COMMENT ON COLUMN task.task_time IS '작업 소요 시간 (분단위)';
+COMMENT ON COLUMN equipments.durability IS '내구도 (사용 횟수)';
+COMMENT ON COLUMN equipments.rest_duration IS '장비 휴식 시간 (분단위)';

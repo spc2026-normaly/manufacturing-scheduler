@@ -1,47 +1,181 @@
 .eqAlarmCard {
   background-color: var(--card-bg, #ffffff);
   border: 1px solid var(--border, #e2e8f0);
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 20px 24px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.025);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  max-height: 310px;
-  align-self: start;
+  gap: 16px;
+  height: 100%;
+  max-height: 300px;
+  transition: all 0.3s ease;
 }
+
+.eqAlarmCard:hover {
+  box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.05);
+}
+
+.eqAlarmHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 12px;
+  position: relative;
+}
+
+.eqAlarmIcon {
+  font-size: 16px;
+}
+
 .eqAlarmTitle {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
-  color: var(--text-main, #0f172a);
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--border, #f1f5f9);
-  padding-bottom: 8px;
+  color: #0f172a;
 }
-.eqAlarmItem {
+
+.eqAlarmCount {
+  background-color: #ef4444;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 13px;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
 }
-.eqAlarmMeta {
-  color: var(--text-muted, #64748b);
-}
-.eqAlarmValue {
-  font-weight: 600;
-  color: var(--text-main, #1e293b);
-}
-.eqDivider {
-  height: 1px;
-  background-color: var(--border, #f1f5f9);
-  margin: 4px 0;
-  border: none;
-}
+
 .eqAlarmList {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   overflow-y: auto;
   flex: 1;
   padding-right: 4px;
+}
+
+/* Scrollbar styling */
+.eqAlarmList::-webkit-scrollbar {
+  width: 4px;
+}
+.eqAlarmList::-webkit-scrollbar-track {
+  background: transparent;
+}
+.eqAlarmList::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 2px;
+}
+.eqAlarmList::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.eqAlarmItemWrapper {
+  background-color: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  padding: 10px 12px;
+  transition: all 0.2s ease;
+}
+
+.eqAlarmItemWrapper:hover {
+  background-color: #f1f5f9;
+  border-color: #e2e8f0;
+  transform: translateX(2px);
+}
+
+.eqAlarmItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.eqAlarmLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.eqIconCircle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background-color: #e2e8f0;
+  border-radius: 50%;
+  font-size: 13px;
+}
+
+.eqInfoContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.eqName {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.eqDate {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.eqAlarmRight {
+  display: flex;
+  align-items: center;
+}
+
+.ddayBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-align: center;
+  min-width: 48px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+.badgeDanger {
+  background-color: #fee2e2;
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.15);
+  animation: pulse-border 2s infinite;
+}
+
+.badgeWarning {
+  background-color: #fffbeb;
+  color: #d97706;
+  border: 1px solid rgba(217, 119, 6, 0.15);
+}
+
+.badgeInfo {
+  background-color: #eff6ff;
+  color: #2563eb;
+  border: 1px solid rgba(37, 99, 235, 0.15);
+}
+
+.emptyAlarm {
+  font-size: 12px;
+  color: #64748b;
+  text-align: center;
+  padding: 24px 0;
+}
+
+@keyframes pulse-border {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3);
+  }
+  70% {
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
 }

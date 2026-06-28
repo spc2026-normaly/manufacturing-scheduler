@@ -65,7 +65,17 @@
   border-color: #dadce0;
 }
 .badgeYellow {
-  background-color: #fef7e0;
-  color: #b06000;
-  border-color: #feebc8;
+  background-color: #fff3e0;
+  color: #e65100;
+  border-color: #ffcc80;
+}
+.badgeRed {
+  background-color: #fce8e6;
+  color: #c5221f;
+  border-color: #fad2cf;
+}
+.badgeGreen {
+  background-color: #e6f4ea;
+  color: #137333;
+  border-color: #ceead6;
 }

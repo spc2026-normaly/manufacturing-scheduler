@@ -7,6 +7,8 @@ export interface Equipment {
   eq_status: string;
   check_date: string;
   recent_check_date: string;
+  durability: number;
+  rest_duration: number;
 }
 
 export interface UpcomingEquipment {

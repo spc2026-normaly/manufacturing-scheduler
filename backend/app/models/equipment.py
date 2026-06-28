@@ -23,6 +23,8 @@ class Equipment(Base):
     )
     check_date: Mapped[date] = mapped_column(Date, nullable=False)
     recent_check_date: Mapped[date] = mapped_column(Date, nullable=False)
+    durability: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rest_duration: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     def __repr__(self) -> str:
         return f"<Equipment(eq_id='{self.eq_id}', name='{self.eq_name}', status='{self.eq_status}')>"

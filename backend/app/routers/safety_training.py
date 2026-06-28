@@ -74,7 +74,14 @@ async def upload_safety_training_csv(
     except Exception as e:
         print(f"R2 업로드 실패: {e}")
 
-    reader = csv.DictReader(io.StringIO(decoded))
+    first_line = decoded.split('\n')[0] if decoded else ""
+    delimiter = ','
+    for d in ['\t', ';']:
+        if d in first_line:
+            delimiter = d
+            break
+            
+    reader = csv.DictReader(io.StringIO(decoded), delimiter=delimiter)
     rows = list(reader)
 
     if not rows:

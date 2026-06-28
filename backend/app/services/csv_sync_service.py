@@ -51,7 +51,15 @@ def _parse_int(value: str | None, default: int = 0) -> int:
 
 def _read_rows(file_bytes: bytes) -> list[dict[str, str]]:
     content = _decode_csv(file_bytes)
-    reader = csv.DictReader(StringIO(content))
+    
+    first_line = content.split('\n')[0] if content else ""
+    delimiter = ','
+    for d in ['\t', ';']:
+        if d in first_line:
+            delimiter = d
+            break
+            
+    reader = csv.DictReader(StringIO(content), delimiter=delimiter)
 
     # 동기화 에러 발생해서 임시 방편으로 수정
     rows = []
@@ -113,6 +121,8 @@ def _sync_equipments(db: Session, rows: list[dict[str, str]]) -> dict:
         "eq_status": _match_key(first, ["상태", "eq_status"]),
         "check_date": _match_key(first, ["다음점검일", "check_date"]),
         "recent_check_date": _match_key(first, ["최근점검일", "recent_check_date"]),
+        "durability": _match_key(first, ["내구도", "durability"]),
+        "rest_duration": _match_key(first, ["장비휴식시간", "장비 휴식 시간", "rest_duration", "rest_time"]),
     }
 
     required = ["eq_id", "eq_name"]
@@ -167,6 +177,16 @@ def _sync_equipments(db: Session, rows: list[dict[str, str]]) -> dict:
                 ),
                 "check_date": check_date_val,
                 "recent_check_date": recent_check_date_val,
+                "durability": (
+                    _parse_int(row.get(key_map["durability"]))
+                    if key_map["durability"]
+                    else 0
+                ),
+                "rest_duration": (
+                    _parse_int(row.get(key_map["rest_duration"]))
+                    if key_map["rest_duration"]
+                    else 0
+                ),
             }
         )
 
@@ -175,9 +195,9 @@ def _sync_equipments(db: Session, rows: list[dict[str, str]]) -> dict:
         db.execute(
             text("""
                 INSERT INTO equipments
-                (eq_id, eq_name, eq_count, available_eq_count, check_cycle, eq_status, check_date, recent_check_date)
+                (eq_id, eq_name, eq_count, available_eq_count, check_cycle, eq_status, check_date, recent_check_date, durability, rest_duration)
                 VALUES
-                (:eq_id, :eq_name, :eq_count, :available_eq_count, :check_cycle, :eq_status, :check_date, :recent_check_date)
+                (:eq_id, :eq_name, :eq_count, :available_eq_count, :check_cycle, :eq_status, :check_date, :recent_check_date, :durability, :rest_duration)
                 """),
             payloads,
         )

@@ -54,11 +54,12 @@ export function useEquipments() {
     fetchData();
   }, []);
 
-  const normalEquipmentsCount = equipments.filter(e => e.eq_status === "정상").length;
+  const totalEquipmentsCount = equipments.reduce((sum, e) => sum + (e.eq_count || 0), 0);
+  const totalAvailableCount = equipments.reduce((sum, e) => sum + (e.available_eq_count || 0), 0);
 
   const metrics = [
-    { title: "전체 장비", value: String(equipments.length), unit: "대" },
-    { title: "사용 가능 장비 수", value: String(normalEquipmentsCount), unit: "대" },
+    { title: "전체 장비", value: String(totalEquipmentsCount), unit: "대" },
+    { title: "사용 가능 장비 수", value: String(totalAvailableCount), unit: "대" },
     { title: "점검 예정 장비", value: String(upcomingEquipments.length), unit: "건" }
   ];
 

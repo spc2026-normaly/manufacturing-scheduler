@@ -41,6 +41,26 @@ export function useSchedules() {
   const [workerSearchFilter, setWorkerSearchFilter] = useState<string>("");
   const [selectedWorker, setSelectedWorker] = useState<string | null>(null);
 
+  // ─── Gantt Drag & Drop and Conflict States ───
+  const [pendingUpdates, setPendingUpdates] = useState<Record<string, any>>({});
+  const [conflictModal, setConflictModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    reason: string;
+    workers: { emp_id: string; emp_name: string }[];
+    onSelect: (empId: string) => void;
+    onCancel: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    reason: "",
+    workers: [],
+    onSelect: () => {},
+    onCancel: () => {}
+  });
+
+  const isDirty = useMemo(() => Object.keys(pendingUpdates).length > 0, [pendingUpdates]);
+
   // Date formatting helpers
   const getFormattedDate = (date: Date) => {
     const yyyy = date.getFullYear();
@@ -357,7 +377,7 @@ export function useSchedules() {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    const container = document.querySelector(".sched-container");
+    const container = document.getElementById("gantt-container-root");
     if (container) {
       const rect = container.getBoundingClientRect();
       setTooltipPos({
@@ -369,6 +389,103 @@ export function useSchedules() {
         x: e.clientX + 15,
         y: e.clientY + 15
       });
+    }
+  };
+
+  const handleMoveTask = async (taskId: string, targetWeekIndex: number) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    const originalStartWeek = task.startWeek;
+    const weekDiff = targetWeekIndex - originalStartWeek;
+    if (weekDiff === 0) return;
+    
+    const newStart = new Date(task.startDate);
+    newStart.setDate(task.startDate.getDate() + (weekDiff * 7));
+    const newEnd = new Date(task.endDate);
+    newEnd.setDate(task.endDate.getDate() + (weekDiff * 7));
+    
+    try {
+      const resp = await fetch("/api/schedules/validate-shift", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schedule_id: taskId,
+          new_start: newStart.toISOString(),
+          new_end: newEnd.toISOString()
+        })
+      });
+      
+      const resData = await resp.json();
+      if (resData.success) {
+        applyLocalUpdate(taskId, newStart, newEnd, task.workers, weekDiff);
+        showToast("📅 일정이 임시 이동되었습니다. 상단의 [변경사항 최종 저장] 버튼을 누르시면 클라우드에 반영됩니다.");
+      } else {
+        setConflictModal({
+          isOpen: true,
+          title: "⚠️ 작업자 자격 및 스케줄 충돌 감지",
+          reason: resData.reason,
+          workers: resData.alternative_workers || [],
+          onSelect: (selectedWorkerId: string) => {
+            const newWorkers = [selectedWorkerId];
+            applyLocalUpdate(taskId, newStart, newEnd, newWorkers, weekDiff);
+            showToast("👷 대체 작업자를 배정하여 일정이 임시 배치되었습니다.");
+            setConflictModal(prev => ({ ...prev, isOpen: false }));
+          },
+          onCancel: () => {
+            setConflictModal(prev => ({ ...prev, isOpen: false }));
+          }
+        });
+      }
+    } catch (e) {
+      showToast("일정 이동 검증에 실패했습니다.");
+    }
+  };
+
+  const applyLocalUpdate = (taskId: string, start: Date, end: Date, workers: string[], weekDiff: number) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          startDate: start,
+          endDate: end,
+          startWeek: t.startWeek + weekDiff,
+          endWeek: t.endWeek + weekDiff,
+          workers: workers
+        };
+      }
+      return t;
+    }));
+    
+    setPendingUpdates(prev => ({
+      ...prev,
+      [taskId]: {
+        id: taskId,
+        start_date: start.toISOString(),
+        end_date: end.toISOString(),
+        workers: workers
+      }
+    }));
+  };
+
+  const handleSaveChanges = async () => {
+    try {
+      const resp = await fetch("/api/schedules/batch-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          updates: Object.values(pendingUpdates)
+        })
+      });
+      if (resp.ok) {
+        showToast("🎉 일정 변경사항이 성공적으로 저장 및 클라우드(R2)에 동기화되었습니다.");
+        setPendingUpdates({});
+        loadSchedules();
+      } else {
+        throw new Error("저장 실패");
+      }
+    } catch (e) {
+      showToast("❌ 변경사항 저장에 실패했습니다.");
     }
   };
 
@@ -411,6 +528,12 @@ export function useSchedules() {
     handleNextMonth,
     handleGoToday,
     handleMouseMove,
+    isDirty,
+    pendingUpdates,
+    conflictModal,
+    setConflictModal,
+    handleMoveTask,
+    handleSaveChanges,
     refetch: loadSchedules
   };
 }

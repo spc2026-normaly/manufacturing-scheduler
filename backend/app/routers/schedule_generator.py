@@ -612,6 +612,13 @@ async def generate_from_r2(
     if mode not in ("forward", "backward", "cpsat"):
         raise HTTPException(status_code=400, detail=f"유효하지 않은 mode: {mode}. forward | backward | cpsat 중 선택하세요.")
     try:
+        # 0. 일정 수립 전 검증용 작업자 자격 캐시 초기화
+        try:
+            import app.routers.scheduler_api
+            app.routers.scheduler_api.QUALIFIED_WORKERS_CACHE = None
+        except Exception:
+            pass
+
         # 1. Run the schedule generation pipeline first (reads inputs, runs RAG, GPT, resolver, uploads to R2)
         pipeline_result = generate_and_upload_schedule(db, mode=mode)
         

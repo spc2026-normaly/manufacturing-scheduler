@@ -19,6 +19,9 @@ interface GanttMonthViewProps {
   setHoveredTask: (task: ProductionTask | null) => void;
   handleMouseMove: (e: React.MouseEvent) => void;
   showToast: (msg: string) => void;
+  handleMoveTask: (taskId: string, targetWeekIndex: number) => void;
+  isEditMode: boolean;
+  setIsEditMode: (val: boolean) => void;
 }
 
 export function GanttMonthView({
@@ -38,7 +41,12 @@ export function GanttMonthView({
   setHoveredTask,
   handleMouseMove,
   showToast,
+  handleMoveTask,
+  isEditMode,
+  setIsEditMode,
 }: GanttMonthViewProps) {
+
+  const [collapsedOrders, setCollapsedOrders] = React.useState<Record<string, boolean>>({});
 
   // Helper to map colorClass name to local CSS Module style key
   const getColorClass = (colorClass: string) => {
@@ -54,28 +62,43 @@ export function GanttMonthView({
     }
   };
 
+  // 전체 접기/펼치기 핸들러
+  const handleCollapseAll = () => {
+    const newCollapsed: Record<string, boolean> = {};
+    tasks.forEach((t) => {
+      newCollapsed[`${t.facility}_${t.orderNum}`] = true;
+      newCollapsed[`${t.orderNum}_${t.facility}`] = true;
+    });
+    setCollapsedOrders(newCollapsed);
+    showToast("📁 모든 일정을 접었습니다.");
+  };
+
+  const handleExpandAll = () => {
+    setCollapsedOrders({});
+    showToast("📂 모든 일정을 펼쳤습니다.");
+  };
+
   return (
-    <div>
-      <div className={styles.ganttTitleRow}>
-        <div className={styles.ganttFilters}>
+    <div className={`${styles.ganttContainer} animate-in`}>
+      <div className={styles.ganttHeader} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           <select
             className={styles.ganttSelect}
             value={ganttGroupBy}
             onChange={(e) => setGanttGroupBy(e.target.value as "facility" | "order")}
-            style={{ fontWeight: "bold", borderColor: "#3b82f6", color: "#2563eb" }}
           >
-            <option value="facility">정렬 기준: 공장동별</option>
-            <option value="order">정렬 기준: 주문번호별</option>
+            <option value="facility">공장동 기준 정렬</option>
+            <option value="order">주문번호 기준 정렬</option>
           </select>
           <select
             className={styles.ganttSelect}
             value={factoryFilter}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFactoryFilter(e.target.value)}
+            onChange={(e) => setFactoryFilter(e.target.value)}
           >
-            <option value="전체">공장 선택 - 전체 공장</option>
-            <option value="A공장동">A공장동</option>
-            <option value="B공장동">B공장동</option>
-            <option value="C공장동">C공장동</option>
+            <option value="">공장동 선택 - 전체</option>
+            <option value="A동">A동 (확산/세정/금속)</option>
+            <option value="B동">B동 (식각/이온주입)</option>
+            <option value="C동">C동 (박막/노광)</option>
             <option value="D공장동">D공장동</option>
             <option value="E공장동">E공장동</option>
             <option value="F공장동">F공장동</option>
@@ -85,7 +108,7 @@ export function GanttMonthView({
             className={styles.ganttSelect}
             style={{ minWidth: "180px" }}
             value={orderNumFilter}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setOrderNumFilter(e.target.value)}
+            onChange={(e) => setOrderNumFilter(e.target.value)}
           >
             <option value="">주문번호 선택 - 전체</option>
             {ordersList.map((num) => (
@@ -94,8 +117,71 @@ export function GanttMonthView({
               </option>
             ))}
           </select>
+
+          {/* 전체 접기/펼치기 버튼 */}
+          <button
+            onClick={handleExpandAll}
+            className={styles.ganttTextBtn}
+            style={{
+              background: "#f1f5f9",
+              border: "1px solid #cbd5e1",
+              color: "#334155",
+              padding: "6px 12px",
+              borderRadius: "6px",
+              fontSize: "12px",
+              fontWeight: "600",
+              cursor: "pointer",
+              marginLeft: "10px"
+            }}
+          >
+            📂 전체 펼치기
+          </button>
+          <button
+            onClick={handleCollapseAll}
+            className={styles.ganttTextBtn}
+            style={{
+              background: "#f1f5f9",
+              border: "1px solid #cbd5e1",
+              color: "#334155",
+              padding: "6px 12px",
+              borderRadius: "6px",
+              fontSize: "12px",
+              fontWeight: "600",
+              cursor: "pointer"
+            }}
+          >
+            📁 전체 접기
+          </button>
         </div>
-        <span className={styles.ganttTitle}>생산 일정 캘린더 ({selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월)</span>
+
+        {/* 편집 모드 토글 버튼 우측 정렬 */}
+        <button
+          className={`${styles.editModeBtn} ${isEditMode ? styles.active : ""}`}
+          onClick={() => {
+            setIsEditMode(!isEditMode);
+            showToast(
+              isEditMode
+                ? "🔒 일정 편집 모드가 비활성화되었습니다. (드래그 불가)"
+                : "🔓 일정 편집 모드가 활성화되었습니다! 주간 블록을 드래그해서 자유롭게 일정을 이동해보세요."
+            );
+          }}
+          style={{
+            background: isEditMode ? "linear-gradient(135deg, #fef2f2, #fee2e2)" : "white",
+            border: isEditMode ? "1.5px solid #f87171" : "1.5px solid #d1d5db",
+            color: isEditMode ? "#dc2626" : "#374151",
+            padding: "8px 16px",
+            borderRadius: "8px",
+            fontSize: "12.5px",
+            fontWeight: "600",
+            cursor: "pointer",
+            boxShadow: isEditMode ? "0 0 8px rgba(239, 68, 68, 0.15)" : "none",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px"
+          }}
+        >
+          {isEditMode ? "🔒 일정 편집 모드 종료" : "✏️ 일정 드래그 편집"}
+        </button>
       </div>
 
       <div className={styles.ganttWrapper}>
@@ -128,60 +214,116 @@ export function GanttMonthView({
               {Array.from(new Set(tasks.map((t) => t.facility))).map((facility) => {
                 const facilityTasks = tasks.filter((t) => t.facility === facility);
                 const uniqueOrderNums = Array.from(new Set(facilityTasks.map((t) => t.orderNum)));
+                
+                // 접힌 상태를 반영하여 공장동 rowSpan 계산
+                let totalFacilityRows = 0;
+                uniqueOrderNums.forEach((oNum) => {
+                  const oTasks = facilityTasks.filter((t) => t.orderNum === oNum);
+                  const isCol = !!collapsedOrders[`${facility}_${oNum}`];
+                  totalFacilityRows += isCol ? 1 : oTasks.length;
+                });
+                
+                let facilityRowRendered = false;
 
-                return uniqueOrderNums.map((orderNum, idx) => {
+                return uniqueOrderNums.map((orderNum) => {
                   const orderTasks = facilityTasks.filter((t) => t.orderNum === orderNum);
                   const productName = orderTasks[0]?.product || "";
-                  const isFirstForFacility = idx === 0;
+                  const key = `${facility}_${orderNum}`;
+                  const isCollapsed = !!collapsedOrders[key];
 
-                  return (
-                    <tr key={`${facility}_${orderNum}`} className={styles.eqRow}>
-                      {isFirstForFacility && (
-                        <td className={styles.ganttColFacility} rowSpan={uniqueOrderNums.length}>
-                          {facility}
-                        </td>
-                      )}
-                      <td className={styles.ganttColTask}>{orderNum}</td>
-                      <td className={styles.ganttColEq}>{productName}</td>
-                      {monthWeeks.map((_, weekIndex) => {
-                        const task = orderTasks.find((t) => t.startWeek === weekIndex);
-                        const isWithin = orderTasks.some((t) => weekIndex > t.startWeek && weekIndex <= t.endWeek);
+                  return orderTasks.map((task, taskIdx) => {
+                    // 접힌 상태에서는 첫 번째 작업(0번째) 외의 서브행은 렌더링하지 않음
+                    if (isCollapsed && taskIdx > 0) return null;
 
-                        if (isWithin) {
-                          return null;
-                        }
+                    const isFirstForFacility = !facilityRowRendered;
+                    facilityRowRendered = true;
+                    const isFirstForOrder = taskIdx === 0;
 
-                        const colSpan = task ? (task.endWeek - task.startWeek + 1) : 1;
-
-                        return (
-                          <td
-                            key={weekIndex}
-                            colSpan={colSpan}
-                            className={styles.ganttCellDay}
-                          >
-                            {task && (
-                              <div
-                                className={`${styles.ganttBlock} ${getColorClass(task.colorClass)}`}
-                                onMouseEnter={(e) => {
-                                  setHoveredTask(task);
-                                  handleMouseMove(e);
-                                }}
-                                onMouseMove={handleMouseMove}
-                                onMouseLeave={() => setHoveredTask(null)}
-                                onClick={() => {
-                                  setSelectedDate(monthWeeks[weekIndex].monday);
-                                  setCurrentTab("day");
-                                  showToast(`${monthWeeks[weekIndex].label} 상세 계획으로 이동했습니다.`);
-                                }}
-                              >
-                                {task.taskName}
-                              </div>
-                            )}
+                    return (
+                      <tr key={task.id} className={styles.eqRow}>
+                        {isFirstForFacility && (
+                          <td className={styles.ganttColFacility} rowSpan={totalFacilityRows}>
+                            {facility}
                           </td>
-                        );
-                      })}
-                    </tr>
-                  );
+                        )}
+                        {isFirstForOrder && (
+                          <td className={styles.ganttColTask} rowSpan={isCollapsed ? 1 : orderTasks.length}>
+                            <button
+                              onClick={() => setCollapsedOrders(prev => ({ ...prev, [key]: !prev[key] }))}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                marginRight: "6px",
+                                padding: 0,
+                                fontSize: "11px",
+                                color: "#3b82f6",
+                                fontWeight: "bold"
+                              }}
+                              title={isCollapsed ? "상세 공정 펼치기" : "공정 접기"}
+                            >
+                              {isCollapsed ? "▶" : "▼"}
+                            </button>
+                            {orderNum}
+                          </td>
+                        )}
+                        {isFirstForOrder && (
+                          <td className={styles.ganttColEq} rowSpan={isCollapsed ? 1 : orderTasks.length}>
+                            {productName}
+                          </td>
+                        )}
+                        {monthWeeks.map((_, weekIndex) => {
+                          const isStart = task.startWeek === weekIndex;
+                          const isWithin = weekIndex > task.startWeek && weekIndex <= task.endWeek;
+
+                          if (isWithin) {
+                            return null;
+                          }
+
+                          const colSpan = isStart ? (task.endWeek - task.startWeek + 1) : 1;
+
+                          return (
+                            <td
+                              key={weekIndex}
+                              colSpan={colSpan}
+                              className={styles.ganttCellDay}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => {
+                                const dragId = e.dataTransfer.getData("taskId");
+                                if (dragId) handleMoveTask(dragId, weekIndex);
+                              }}
+                            >
+                              {isStart && (
+                                <div
+                                  className={`${styles.ganttBlock} ${getColorClass(task.colorClass)}`}
+                                  draggable={isEditMode}
+                                  onDragStart={(e) => {
+                                    if (!isEditMode) return;
+                                    e.dataTransfer.setData("taskId", task.id);
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    setHoveredTask(task);
+                                    handleMouseMove(e);
+                                  }}
+                                  onMouseMove={handleMouseMove}
+                                  onMouseLeave={() => setHoveredTask(null)}
+                                  onClick={() => {
+                                    if (isEditMode) return;
+                                    setSelectedDate(monthWeeks[weekIndex].monday);
+                                    setCurrentTab("day");
+                                    showToast(`${monthWeeks[weekIndex].label} 상세 계획으로 이동했습니다.`);
+                                  }}
+                                  style={{ cursor: isEditMode ? "grab" : "pointer" }}
+                                >
+                                  <span>{task.taskName}</span>
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  });
                 });
               })}
             </tbody>
@@ -216,65 +358,115 @@ export function GanttMonthView({
                 const orderTasks = tasks.filter((t) => t.orderNum === orderNum);
                 const uniqueFacilities = Array.from(new Set(orderTasks.map((t) => t.facility)));
                 const productName = orderTasks[0]?.product || "";
+                
+                // 접힌 상태를 반영하여 주문별 rowSpan 계산
+                let totalOrderRows = 0;
+                uniqueFacilities.forEach((fac) => {
+                  const fTasks = orderTasks.filter((t) => t.facility === fac);
+                  const isCol = !!collapsedOrders[`${orderNum}_${fac}`];
+                  totalOrderRows += isCol ? 1 : fTasks.length;
+                });
+                
+                let orderRowRendered = false;
 
-                return uniqueFacilities.map((facility, idx) => {
-                  const facilityOrderTasks = orderTasks.filter((t) => t.facility === facility);
-                  const isFirstForOrder = idx === 0;
+                return uniqueFacilities.map((facility) => {
+                  const facilityTasks = orderTasks.filter((t) => t.facility === facility);
+                  const key = `${orderNum}_${facility}`;
+                  const isCollapsed = !!collapsedOrders[key];
 
-                  return (
-                    <tr key={`${orderNum}_${facility}`} className={styles.eqRow}>
-                      {isFirstForOrder && (
-                        <>
-                          <td className={styles.ganttColTask} rowSpan={uniqueFacilities.length} style={{ fontWeight: "700", textAlign: "center", backgroundColor: "#f8fafc" }}>
+                  return facilityTasks.map((task, taskIdx) => {
+                    // 접힌 상태에서는 첫 번째 작업(0번째) 외의 서브행은 렌더링하지 않음
+                    if (isCollapsed && taskIdx > 0) return null;
+
+                    const isFirstForOrder = !orderRowRendered;
+                    orderRowRendered = true;
+                    const isFirstForFacility = taskIdx === 0;
+
+                    return (
+                      <tr key={task.id} className={styles.eqRow}>
+                        {isFirstForOrder && (
+                          <td className={styles.ganttColTask} rowSpan={totalOrderRows} style={{ fontWeight: "700", textAlign: "center", backgroundColor: "#f8fafc" }}>
                             {orderNum}
                           </td>
-                          <td className={styles.ganttColEq} rowSpan={uniqueFacilities.length} style={{ fontWeight: "600", fontSize: "13px" }}>
+                        )}
+                        {isFirstForOrder && (
+                          <td className={styles.ganttColEq} rowSpan={totalOrderRows} style={{ fontWeight: "600", fontSize: "13px" }}>
                             {productName}
                           </td>
-                        </>
-                      )}
-                      <td className={styles.ganttColFacility} style={{ color: "#1e3a8a", fontWeight: "700", textAlign: "center", backgroundColor: "#f8fafc" }}>
-                        {facility}
-                      </td>
-                      {monthWeeks.map((_, weekIndex) => {
-                        const task = facilityOrderTasks.find((t) => t.startWeek === weekIndex);
-                        const isWithin = facilityOrderTasks.some((t) => weekIndex > t.startWeek && weekIndex <= t.endWeek);
-
-                        if (isWithin) {
-                          return null;
-                        }
-
-                        const colSpan = task ? (task.endWeek - task.startWeek + 1) : 1;
-
-                        return (
-                          <td
-                            key={weekIndex}
-                            colSpan={colSpan}
-                            className={styles.ganttCellDay}
-                          >
-                            {task && (
-                              <div
-                                className={`${styles.ganttBlock} ${getColorClass(task.colorClass)}`}
-                                onMouseEnter={(e) => {
-                                  setHoveredTask(task);
-                                  handleMouseMove(e);
-                                }}
-                                onMouseMove={handleMouseMove}
-                                onMouseLeave={() => setHoveredTask(null)}
-                                onClick={() => {
-                                  setSelectedDate(monthWeeks[weekIndex].monday);
-                                  setCurrentTab("day");
-                                  showToast(`${monthWeeks[weekIndex].label} 상세 계획으로 이동했습니다.`);
-                                }}
-                              >
-                                {task.taskName}
-                              </div>
-                            )}
+                        )}
+                        {isFirstForFacility && (
+                          <td className={styles.ganttColFacility} rowSpan={isCollapsed ? 1 : facilityTasks.length} style={{ color: "#1e3a8a", fontWeight: "700", textAlign: "center", backgroundColor: "#f8fafc" }}>
+                            <button
+                              onClick={() => setCollapsedOrders(prev => ({ ...prev, [key]: !prev[key] }))}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                marginRight: "6px",
+                                padding: 0,
+                                fontSize: "11px",
+                                color: "#3b82f6",
+                                fontWeight: "bold"
+                              }}
+                              title={isCollapsed ? "상세 공정 펼치기" : "공정 접기"}
+                            >
+                              {isCollapsed ? "▶" : "▼"}
+                            </button>
+                            {facility}
                           </td>
-                        );
-                      })}
-                    </tr>
-                  );
+                        )}
+                        {monthWeeks.map((_, weekIndex) => {
+                          const isStart = task.startWeek === weekIndex;
+                          const isWithin = weekIndex > task.startWeek && weekIndex <= task.endWeek;
+
+                          if (isWithin) {
+                            return null;
+                          }
+
+                          const colSpan = isStart ? (task.endWeek - task.startWeek + 1) : 1;
+
+                          return (
+                            <td
+                              key={weekIndex}
+                              colSpan={colSpan}
+                              className={styles.ganttCellDay}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => {
+                                const dragId = e.dataTransfer.getData("taskId");
+                                if (dragId) handleMoveTask(dragId, weekIndex);
+                              }}
+                            >
+                              {isStart && (
+                                <div
+                                  className={`${styles.ganttBlock} ${getColorClass(task.colorClass)}`}
+                                  draggable={isEditMode}
+                                  onDragStart={(e) => {
+                                    if (!isEditMode) return;
+                                    e.dataTransfer.setData("taskId", task.id);
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    setHoveredTask(task);
+                                    handleMouseMove(e);
+                                  }}
+                                  onMouseMove={handleMouseMove}
+                                  onMouseLeave={() => setHoveredTask(null)}
+                                  onClick={() => {
+                                    if (isEditMode) return;
+                                    setSelectedDate(monthWeeks[weekIndex].monday);
+                                    setCurrentTab("day");
+                                    showToast(`${monthWeeks[weekIndex].label} 상세 계획으로 이동했습니다.`);
+                                  }}
+                                  style={{ cursor: isEditMode ? "grab" : "pointer" }}
+                                >
+                                  <span>{task.taskName}</span>
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  });
                 });
               })}
             </tbody>

@@ -33,9 +33,14 @@ def load_input_csvs_from_r2() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame,
             content_bytes = download_file_from_r2(key)
             decoded = decode_csv_bytes(content_bytes)
             
-            # 직원교육이력.csv is typically cp949/euc-kr from Excel
-            # read_csv with StringIO
-            df = pd.read_csv(io.StringIO(decoded))
+            # Determine separator dynamically based on first line
+            sep = ','
+            first_line = decoded.split('\n')[0] if decoded else ""
+            for d in ['\t', ';']:
+                if d in first_line:
+                    sep = d
+                    break
+            df = pd.read_csv(io.StringIO(decoded), sep=sep)
             # Clean column names (strip whitespace)
             df.columns = [c.strip() for c in df.columns]
             parsed[name] = df
@@ -111,15 +116,20 @@ def parse_schedule_csv_directly(
     col_status = find_column(headers, ["납기상태", "order_status", "상태"])
     col_equip = find_column(headers, ["필요장비", "equipments", "equipment", "장비"])
     
+    # 기존 일정 및 배정, 주문 데이터 삭제 (새로 적재하기 위해 초기화)
+    try:
+        # PostgreSQL 외래키 관계상 schedule_assignments -> schedules -> orders 순으로 삭제
+        db.execute(text("DELETE FROM schedule_assignments"))
+        db.execute(text("DELETE FROM schedules"))
+        db.execute(text("DELETE FROM orders"))
+        db.commit()
+        print("🗑️ 기존 일정, 배정 현황 및 주문 데이터를 성공적으로 초기화했습니다.")
+    except Exception as del_err:
+        db.rollback()
+        print(f"⚠️ 기존 일정 데이터 삭제 실패: {str(del_err)}")
+
     saved_count = 0
-    
-    # Refresh order_map from DB
-    orders_db = db.execute(text("SELECT order_id, order_num FROM orders")).mappings().all()
-    for o in orders_db:
-        ord_id = o['order_id']
-        ord_num = o['order_num']
-        order_map[ord_id.lower().strip()] = ord_id
-        order_map[ord_num.lower().strip()] = ord_id
+    order_map.clear()  # 기존 맵 초기화하여 신규 ID 생성 유도
         
     for row in reader:
         order_num = row.get(col_order_num, "").strip() if col_order_num else ""

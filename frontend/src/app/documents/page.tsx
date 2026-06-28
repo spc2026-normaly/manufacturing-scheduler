@@ -24,7 +24,6 @@ export default function DocumentsPage() {
     handleDrag,
     handleDrop,
     handleFileChange,
-    handleStartSchedule,
     handleSyncR2,
     handleDelete,
     handleDownload,
@@ -48,7 +47,6 @@ export default function DocumentsPage() {
           handleDrag={handleDrag}
           handleDrop={handleDrop}
           handleFileChange={handleFileChange}
-          handleStartSchedule={handleStartSchedule}
           handleSyncR2={handleSyncR2}
         />
 

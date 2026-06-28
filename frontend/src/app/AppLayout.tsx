@@ -8,6 +8,7 @@ import AIChatbot from "./AIChatbot";
 const NAV_ITEMS = [
   { icon: "🏠", label: "메인", path: "dashboard" },
   { icon: "📄", label: "내 문서", path: "documents" },
+  { icon: "🏭", label: "일정 수립", path: "schedule-builder" },
   { icon: "📅", label: "양산 일정", path: "schedules" },
   { icon: "👥", label: "팀원 관리", path: "employees" },
   { icon: "📊", label: "안전 교육 현황", path: "safety-training" },
@@ -53,7 +54,7 @@ function LiveClock() {
 
 // Custom Toast Component for interactive feedback
 interface Toast {
-  id: number;
+  id: string;
   message: string;
 }
 
@@ -75,7 +76,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [loginSubmitting, setLoginSubmitting] = useState(false);
 
   // Determine active menu based on URL pathname
-  const activeMenu = pathname === "/employees" ? "팀원 관리" : pathname === "/safety-training" ? "안전 교육 현황" : pathname === "/equipments" ? "장비 관리" : pathname === "/documents" ? "내 문서" : pathname === "/schedules" ? "양산 일정" : "메인";
+  const activeMenu = pathname === "/employees" ? "팀원 관리" : pathname === "/safety-training" ? "안전 교육 현황" : pathname === "/equipments" ? "장비 관리" : pathname === "/documents" ? "내 문서" : pathname === "/schedules" ? "양산 일정" : pathname === "/schedule-builder" ? "일정 수립" : "메인";
 
   // Fetch /api/auth/me to verify token
   const fetchMe = async (authToken: string) => {
@@ -180,6 +181,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       router.push("/documents");
     } else if (path === "schedules") {
       router.push("/schedules");
+    } else if (path === "schedule-builder") {
+      router.push("/schedule-builder");
     } else if (path === "safety-training") {
       router.push("/safety-training");
     } else if (path === "equipments") {
@@ -192,7 +195,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Toast helper
   const showToast = (message: string) => {
     console.log("[showToast] Triggered with message:", message);
-    const id = Date.now();
+    const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     setToasts((prev) => [...prev, { id, message }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -404,7 +407,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="sidebar-nav-list">
           {NAV_ITEMS.filter((item) => {
             if (user?.emp_role === "member") {
-              return item.path === "schedules" || item.path === "safety-training";
+              return item.path === "schedules" || item.path === "safety-training" || item.path === "schedule-builder";
             }
             return true;
           }).map((item) => (
@@ -463,7 +466,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* ── Dynamic Main Screen ── */}
         <main className="page-content">
-          {user && user.emp_role === "member" && activeMenu !== "양산 일정" && activeMenu !== "안전 교육 현황" ? (
+          {user && user.emp_role === "member" && activeMenu !== "양산 일정" && activeMenu !== "안전 교육 현황" && activeMenu !== "일정 수립" ? (
             <div className="placeholder-content card animate-in" style={{ borderColor: "#fca5a5" }}>
               <div className="placeholder-icon" style={{ fontSize: "48px", marginBottom: "16px" }}>🚫</div>
               <h2 style={{ color: "#dc2626" }}>접근 권한이 없습니다</h2>
@@ -474,7 +477,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 양산 일정으로 이동
               </button>
             </div>
-          ) : activeMenu === "메인" || activeMenu === "팀원 관리" || activeMenu === "안전 교육 현황" || activeMenu === "장비 관리" || activeMenu === "내 문서" || activeMenu === "양산 일정" ? (
+          ) : activeMenu === "메인" || activeMenu === "팀원 관리" || activeMenu === "안전 교육 현황" || activeMenu === "장비 관리" || activeMenu === "내 문서" || activeMenu === "양산 일정" || activeMenu === "일정 수립" ? (
             children
           ) : (
             <div className="placeholder-content card animate-in">

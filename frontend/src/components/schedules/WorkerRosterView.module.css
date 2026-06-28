@@ -149,3 +149,539 @@
   text-overflow: ellipsis;
   max-width: 100%;
 }
+
+/* ── Roster Section Header & Toggle Button Styles ── */
+.rosterSectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.rosterSectionTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.toggleButtonGroup {
+  display: flex;
+  background-color: #f1f5f9;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.toggleBtn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.toggleBtn.active {
+  background-color: white;
+  color: #2563eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Timeline View Layout ── */
+.timelineContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.timelineDateHeader {
+  font-size: 14px;
+  font-weight: 700;
+  color: #3b82f6;
+  background-color: #eff6ff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  display: inline-block;
+  align-self: flex-start;
+}
+.timelineChartWrapper {
+  position: relative;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: #ffffff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.timelineGridHeader {
+  display: flex;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #475569;
+}
+.workerLabelColumnPlaceholder {
+  width: 140px;
+  padding: 12px;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+}
+.timelineHoursColumns {
+  display: flex;
+  flex: 1;
+  position: relative;
+}
+.hourLabelCell {
+  flex: 1;
+  text-align: center;
+  padding: 10px 0;
+  position: relative;
+}
+.hourLabelCell:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: #f1f5f9;
+}
+.timelineRowsContainer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 점심시간 오버레이 */
+.lunchTimeOverlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background-color: rgba(148, 163, 184, 0.08);
+  border-left: 1px dashed rgba(148, 163, 184, 0.3);
+  border-right: 1px dashed rgba(148, 163, 184, 0.3);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.lunchText {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 1px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+/* 타임라인 Row */
+.timelineRow {
+  display: flex;
+  border-bottom: 1px solid #f1f5f9;
+  min-height: 52px;
+  align-items: stretch;
+  transition: background-color 0.15s ease;
+}
+.timelineRow:hover {
+  background-color: #f8fafc;
+}
+.selectedWorkerRow {
+  background-color: #f0f7ff;
+}
+.workerNameCol {
+  width: 140px;
+  padding: 10px 12px;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #ffffff;
+  z-index: 2;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.02);
+}
+.workerMiniAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background-color: #f1f5f9;
+  color: #475569;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+}
+.selectedWorkerRow .workerMiniAvatar {
+  background-color: #3b82f6;
+  color: white;
+}
+.workerNameText {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+.selectedWorkerRow .workerNameText {
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+.timelineBarArea {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+}
+
+/* 배경 격자선 */
+.rowGridLines {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  pointer-events: none;
+}
+.gridLineSegment {
+  flex: 1;
+}
+.gridLineSegment:not(:last-child) {
+  border-right: 1px solid #f1f5f9;
+}
+
+/* 태스크 가로 바 */
+.timelineTaskBar {
+  position: absolute;
+  height: 38px;
+  border-radius: 6px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.timelineTaskBar:hover {
+  transform: scaleY(1.04) translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+  z-index: 10;
+}
+.timelineTaskBarInner {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  overflow: hidden;
+}
+.barFactoryBadge {
+  font-size: 9px;
+  opacity: 0.8;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.barTaskNameText {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  margin-top: 1px;
+  line-height: 1.2;
+}
+
+/* 대기중 텍스트 */
+.timelineIdleText {
+  position: absolute;
+  left: 16px;
+  font-size: 12px;
+  color: #cbd5e1;
+  font-style: italic;
+}
+
+/* 호버 툴팁 */
+.timelineBarTooltip {
+  display: none;
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(15, 23, 42, 0.95);
+  color: #ffffff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(4px);
+  line-height: 1.4;
+}
+.timelineBarTooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: rgba(15, 23, 42, 0.95) transparent transparent transparent;
+}
+.timelineTaskBar:hover .timelineBarTooltip {
+  display: block;
+}
+
+/* ── Roster Section Header 🔄 축 전환 ── */
+.timelineTitleText {
+  flex: 1;
+}
+.orientationToggleBtn {
+  background-color: #ffffff;
+  color: #3b82f6;
+  border: 1px solid #dbeafe;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.orientationToggleBtn:hover {
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+/* ── 세로 타임라인 레이아웃 (Y축 시간, X축 작업자) ── */
+.verticalTimelineWrapper {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: #ffffff;
+  overflow: hidden;
+}
+.verticalTimelineXHeader {
+  display: flex;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #475569;
+  z-index: 10;
+}
+.verticalTimeColPlaceholder {
+  width: 80px;
+  padding: 12px 6px;
+  border-right: 1px solid #e2e8f0;
+  text-align: center;
+  flex-shrink: 0;
+}
+.verticalWorkerHeaderCell {
+  flex: 1;
+  min-width: 90px;
+  padding: 10px 6px;
+  text-align: center;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-sizing: border-box;
+}
+.verticalWorkerHeaderCell:last-child {
+  border-right: none;
+}
+.selectedWorkerHeader {
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+
+.verticalTimelineBody {
+  display: flex;
+  height: 540px; /* 1분 = 1px 기준 높이 설정 */
+  position: relative;
+}
+.verticalTimeLabelsCol {
+  width: 80px;
+  position: relative;
+  border-right: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+.verticalHourLabelCell {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 20px;
+  margin-top: -10px; /* 중앙 정렬 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.verticalChartArea {
+  flex: 1;
+  position: relative;
+  display: flex;
+}
+
+/* 점심시간 가로 전체 오버레이 */
+.lunchTimeVerticalOverlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background-color: rgba(148, 163, 184, 0.07);
+  border-top: 1px dashed rgba(148, 163, 184, 0.3);
+  border-bottom: 1px dashed rgba(148, 163, 184, 0.3);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.lunchTextVertical {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 2px;
+}
+
+/* 세로 그리드 가로 실선 */
+.verticalGridLines {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+.verticalGridLineSegment {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-top: -0.5px;
+}
+
+/* 작업자 컬럼 레일 */
+.verticalWorkerColumn {
+  flex: 1;
+  min-width: 90px;
+  position: relative;
+  height: 100%;
+  border-right: 1px solid #f1f5f9;
+  box-sizing: border-box;
+}
+.verticalWorkerColumn:last-child {
+  border-right: none;
+}
+.selectedWorkerCol {
+  background-color: rgba(59, 130, 246, 0.02);
+}
+
+/* 세로 태스크 바 */
+.verticalTaskBar {
+  position: absolute;
+  border-radius: 6px;
+  z-index: 2;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  overflow: hidden;
+}
+.verticalTaskBar:hover {
+  transform: scaleX(1.03) translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+  z-index: 10;
+}
+.verticalTaskBarInner {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  padding: 4px;
+  text-align: center;
+  box-sizing: border-box;
+}
+.vertFactoryBadge {
+  font-size: 8.5px;
+  font-weight: 800;
+  opacity: 0.8;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.vertTaskNameText {
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  margin-top: 2px;
+  line-height: 1.1;
+}
+.vertTaskTimeText {
+  font-size: 9px;
+  font-weight: normal;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+/* 세로형 툴팁 */
+.verticalBarTooltip {
+  display: none;
+  position: absolute;
+  bottom: 105%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(15, 23, 42, 0.95);
+  color: #ffffff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(4px);
+  line-height: 1.4;
+}
+.verticalBarTooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: rgba(15, 23, 42, 0.95) transparent transparent transparent;
+}
+.verticalTaskBar:hover .verticalBarTooltip {
+  display: block;
+}
+

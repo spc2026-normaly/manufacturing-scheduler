@@ -8,7 +8,6 @@ interface UploadSectionProps {
   handleDrag: (e: React.DragEvent) => void;
   handleDrop: (e: React.DragEvent) => void;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  handleStartSchedule: () => void;
   handleSyncR2: () => void;
 }
 
@@ -19,7 +18,6 @@ export function UploadSection({
   handleDrag,
   handleDrop,
   handleFileChange,
-  handleStartSchedule,
   handleSyncR2,
 }: UploadSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -62,16 +60,9 @@ export function UploadSection({
       <div className={styles.docScheduleBtnWrapper}>
         <button
           className={styles.docScheduleBtn}
-          onClick={handleStartSchedule}
-          disabled={scheduleStatus === "running"}
-        >
-          {scheduleStatus === "running" ? "일정 생성 중..." : "일정 수립하기"}
-        </button>
-        <button
-          className={styles.docScheduleBtn}
           onClick={handleSyncR2}
           disabled={r2Syncing}
-          style={{ marginLeft: "12px", backgroundColor: "#10b981" }}
+          style={{ backgroundColor: "#10b981" }}
         >
           {r2Syncing ? "동기화 중..." : "☁️ 클라우드페어 DB동기화"}
         </button>

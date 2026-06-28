@@ -599,12 +599,21 @@ async def generate_schedule(
 @router.post("/generate-from-r2", summary="R2 입력을 이용한 생산일정 생성 및 저장")
 async def generate_from_r2(
     db: Session = Depends(get_db),
-    current_emp: Employee = Depends(get_current_employee)
+    current_emp: Employee = Depends(get_current_employee),
+    mode: str = "forward",   # "forward" | "backward" | "cpsat"
 ):
-    """R2에 있는 문서들을 읽어서 일정 생성 및 저장"""
+    """R2에 있는 문서들을 읽어서 일정 생성 및 저장.
+
+    mode 파라미터:
+    - **forward**  : 오늘부터 앞으로 시뮬레이션 (기본값)
+    - **backward** : 납기일에서 역산하여 시작일 도출 후 시뮬레이션
+    - **cpsat**    : Google OR-Tools CP-SAT 최적화 (납기 초과 최소화)
+    """
+    if mode not in ("forward", "backward", "cpsat"):
+        raise HTTPException(status_code=400, detail=f"유효하지 않은 mode: {mode}. forward | backward | cpsat 중 선택하세요.")
     try:
         # 1. Run the schedule generation pipeline first (reads inputs, runs RAG, GPT, resolver, uploads to R2)
-        pipeline_result = generate_and_upload_schedule(db)
+        pipeline_result = generate_and_upload_schedule(db, mode=mode)
         
         # 2. Get reference data to parse the generated CSV
         tasks = db.execute(text("SELECT task_id, task_name FROM task")).mappings().all()
@@ -660,8 +669,18 @@ async def generate_from_r2(
         
         return {
             "message": f"✅ R2 입력을 이용해 새로운 일정 {saved_count}개가 수립되고 DB에 연동되었습니다.",
-            "saved_count": saved_count
+            "saved_count": saved_count,
+            "total_schedules": pipeline_result.get("total_schedules", 0),
+            "total_orders": pipeline_result.get("total_orders", 0),
+            "mode": pipeline_result.get("mode", mode),
+            "kpi": pipeline_result.get("kpi", {}),
+            "delayed_orders": pipeline_result.get("delayed_orders", [])
         }
         
     except Exception as e:
+        # 트랜잭션 aborted 상태 해소: rollback 후 에러 응답
+        try:
+            db.rollback()
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=f"일정 생성 실패: {str(e)}")

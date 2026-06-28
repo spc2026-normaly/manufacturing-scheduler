@@ -7,6 +7,12 @@ from app.config import settings
 from app.services.schedule_pipeline.rag import search_safety_rules
 from app.services.token_service import log_token_usage
 
+try:
+    from app.logger import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
+
 def get_qualified_workers(db: Session, training_df: pd.DataFrame) -> Dict[str, List[str]]:
     """
     Queries safety regulations from RAG, extracts the required safety training codes using GPT,
@@ -59,12 +65,16 @@ def get_qualified_workers(db: Session, training_df: pd.DataFrame) -> Dict[str, L
             result_text = response.choices[0].message.content.strip()
             factory_reqs = json.loads(result_text)
             extracted = True
-            print("🧠 Successfully extracted factory safety training requirements using GPT.")
+            logger.info("GPT로 공장동별 필수 안전교육 요건 추출 성공")
         except Exception as e:
-            print(f"⚠️ Failed to extract factory training requirements using GPT: {str(e)}")
+            logger.error(f"GPT 공장 교육 요건 추출 실패: {e}")
             
     if not extracted:
-        # Fallback to safety rules extracted from the PDF (NeoChip Semiconductor 안전관리규정_통합.pdf)
+        # Fallback: 하드코딩 교육 요건 사용 (NeoChip 안전관리규정_통합.pdf 기반)
+        logger.warning(
+            "GPT/RAG 교육 요건 추출 실패 — 하드코딩 fallback 사용 중. "
+            "결과 정확도가 낮을 수 있습니다."
+        )
         factory_reqs = {
             "A동": ["교육01", "교육02", "교육03", "교육04", "교육05", "교육06"],
             "B동": ["교육01", "교육02", "교육03", "교육04", "교육05", "교육07", "교육08"],
@@ -89,10 +99,10 @@ def get_qualified_workers(db: Session, training_df: pd.DataFrame) -> Dict[str, L
             emp_id_col = col
             break
             
-    # 4. Perform deterministic matching in Python
-    qualified_map = {}
+    # 4. Perform deterministic matching in Python and track expiration dates
+    qualified_map = {} # Dict[str, Dict[str, date]] (factory -> { worker_id: min_exp_date })
     for factory, req_edus in factory_reqs.items():
-        eligible_workers = []
+        eligible_workers_exp = {}
         for _, row in training_df.iterrows():
             emp_id_val = str(row[emp_id_col]).strip()
             emp_id_lower = emp_id_val.lower()
@@ -103,6 +113,7 @@ def get_qualified_workers(db: Session, training_df: pd.DataFrame) -> Dict[str, L
                 continue
                 
             is_eligible = True
+            min_exp = None
             for edu_str in req_edus:
                 m_edu = re.search(r'\d+', edu_str)
                 if not m_edu:
@@ -113,7 +124,6 @@ def get_qualified_workers(db: Session, training_df: pd.DataFrame) -> Dict[str, L
                 if edu_num not in available_edus:
                     continue
                     
-                # Otherwise, check date validity against 2026-07-01
                 status_col = f"교육{edu_num} 이수일"
                 exp_col = f"교육{edu_num} 만료일"
                 
@@ -129,18 +139,17 @@ def get_qualified_workers(db: Session, training_df: pd.DataFrame) -> Dict[str, L
                     
                 try:
                     exp_date = pd.to_datetime(val_exp).date()
-                    ref_date = date(2026, 7, 1)
-                    if exp_date < ref_date:
-                        is_eligible = False
-                        break
+                    if min_exp is None or exp_date < min_exp:
+                        min_exp = exp_date
                 except:
                     is_eligible = False
                     break
             
             if is_eligible:
-                eligible_workers.append(emp_id_lower)
+                # 해당 공장동 요구 교육 중 가장 빨리 만료되는 일자를 기록
+                eligible_workers_exp[emp_id_lower] = min_exp if min_exp is not None else date(9999, 12, 31)
                 
-        qualified_map[factory] = eligible_workers
+        qualified_map[factory] = eligible_workers_exp
         
     return qualified_map
 
@@ -193,7 +202,7 @@ def get_daily_work_minutes(db: Session) -> int:
             return int(match.group(0))
         return default_mins
     except Exception as e:
-        print(f"⚠️ Failed to get daily work minutes from RAG/GPT: {str(e)}")
+        logger.error(f"RAG/GPT 일일 근무시간 조회 실패: {e}")
         return default_mins
 
 
@@ -250,5 +259,5 @@ def get_work_days_from_rag(db: Session) -> List[int]:
             return json.loads(match.group(0))
         return default_days
     except Exception as e:
-        print(f"⚠️ Failed to get work days from RAG/GPT: {str(e)}")
+        logger.error(f"RAG/GPT 근무 요일 조회 실패: {e}")
         return default_days

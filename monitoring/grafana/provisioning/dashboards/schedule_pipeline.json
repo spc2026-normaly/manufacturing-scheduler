@@ -1,0 +1,48 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "schedule-pipeline",
+    "title": "Schedule Pipeline Metrics",
+    "timezone": "browser",
+    "panels": [
+      {
+        "type": "stat",
+        "title": "Successful Runs",
+        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "expr": "sum(rate(schedule_pipeline_success_total[5m]))",
+          "legendFormat": "success",
+          "refId": "A"
+        }]
+      },
+      {
+        "type": "stat",
+        "title": "Failed Runs",
+        "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "expr": "sum(rate(schedule_pipeline_failure_total[5m]))",
+          "legendFormat": "failure",
+          "refId": "B"
+        }]
+      },
+      {
+        "type": "graph",
+        "title": "Stage Duration (seconds)",
+        "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+        "targets": [{
+          "expr": "histogram_quantile(0.95, sum(rate(schedule_pipeline_stage_seconds_bucket[5m])) by (le,stage))",
+          "legendFormat": "{{stage}} 95th percentile",
+          "refId": "C"
+        }, {
+          "expr": "histogram_quantile(0.5, sum(rate(schedule_pipeline_stage_seconds_bucket[5m])) by (le,stage))",
+          "legendFormat": "{{stage}} median",
+          "refId": "D"
+        }]
+      }
+    ],
+    "schemaVersion": 30,
+    "version": 1,
+    "refresh": "5s"
+  },
+  "overwrite": true
+}

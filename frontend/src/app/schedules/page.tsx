@@ -42,6 +42,7 @@ export default function SchedulesPage() {
     weekTasks,
     selectedDayTasks,
     selectedWorkerRoster,
+    allWorkersThisWeek,
     handlePrevDay,
     handleNextDay,
     handlePrevWeek,
@@ -117,6 +118,8 @@ export default function SchedulesPage() {
               selectedWorker={selectedWorker}
               selectedWorkerRoster={selectedWorkerRoster}
               getDayName={getDayName}
+              allWorkersThisWeek={allWorkersThisWeek}
+              selectedDayTasks={selectedDayTasks}
             />
           </div>
         )}

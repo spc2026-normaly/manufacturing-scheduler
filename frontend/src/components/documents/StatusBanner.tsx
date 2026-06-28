@@ -8,10 +8,12 @@ interface StatusBannerProps {
 }
 
 export function StatusBanner({ scheduleStatus, progress, r2SyncMessage }: StatusBannerProps) {
+  // idle 상태이고 r2 동기화 메시지도 없으면 배너 자체를 숨김
+  if (scheduleStatus === "idle" && !r2SyncMessage) return null;
+
   return (
     <div className={styles.docStatusBanner}>
       <span className={styles.docStatusText}>
-        {scheduleStatus === "idle" && "대기 중: 일정 수립 문서를 업로드하고 시작해 주세요."}
         {scheduleStatus === "running" && `일정 생성 중...(${String(progress).padStart(2, "0")}%)`}
         {scheduleStatus === "completed" && "스마트 일정 생성이 완료되었습니다!"}
         {scheduleStatus === "failed" && "일정 생성에 실패했습니다. 다시 시도해주세요."}

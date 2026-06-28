@@ -21,3 +21,6 @@ openpyxl
 pdfplumber
 openai
 pandas
+holidays>=0.55
+ortools>=9.11.4210
+loguru>=0.7.2

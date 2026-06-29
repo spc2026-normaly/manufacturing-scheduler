@@ -9,6 +9,8 @@ interface UploadSectionProps {
   handleDrop: (e: React.DragEvent) => void;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleSyncR2: () => void;
+  uploadProgress: number | null;
+  uploadingFileName: string | null;
 }
 
 export function UploadSection({
@@ -19,6 +21,8 @@ export function UploadSection({
   handleDrop,
   handleFileChange,
   handleSyncR2,
+  uploadProgress,
+  uploadingFileName,
 }: UploadSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -57,6 +61,19 @@ export function UploadSection({
         </button>
         <span className={styles.docUploadHint}>지원 파일 형식 (csv, xlsx, pdf, txt)</span>
       </div>
+      {/* ── Upload Progress Bar ── */}
+      {uploadProgress !== null && (
+        <div className={styles.uploadingInfo}>
+          <span style={{ fontSize: 13 }}>업로드 중: <strong style={{ color: "#3b82f6" }}>{uploadingFileName}</strong></span>
+          <div className={styles.progressContainer}>
+            <div
+              className={styles.progressBar}
+              style={{ width: `${uploadProgress}%` }}
+            />
+            <span className={styles.progressText}>{uploadProgress}%</span>
+          </div>
+        </div>
+      )}
       <div className={styles.docScheduleBtnWrapper}>
         <button
           className={styles.docScheduleBtn}

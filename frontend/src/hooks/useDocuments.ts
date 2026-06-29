@@ -13,6 +13,8 @@ import {
 export function useDocuments() {
   const showToast = useToast();
   const [documents, setDocuments] = useState<DocFile[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [scheduleStatus, setScheduleStatus] = useState<"idle" | "running" | "completed" | "failed">("idle");
   const [progress, setProgress] = useState(0);
@@ -100,11 +102,27 @@ export function useDocuments() {
       return;
     }
 
+    setUploadingFileName(file.name);
+    setUploadProgress(0);
+
+    let progressVal = 0;
+    const interval = setInterval(() => {
+      progressVal += Math.random() * 15;
+      if (progressVal >= 90) {
+        clearInterval(interval);
+        setUploadProgress(90);
+      } else {
+        setUploadProgress(Math.floor(progressVal));
+      }
+    }, 150);
+
     try {
       console.log("[useDocuments] Uploading file...");
       const res = await uploadDocument(file);
+      clearInterval(interval);
       console.log("[useDocuments] Upload response status:", res.status);
       if (res.ok) {
+        setUploadProgress(100);
         showToast(`'${file.name}' 파일이 업로드되었습니다.`);
         loadDocuments();
         window.dispatchEvent(new CustomEvent("data-updated"));
@@ -112,8 +130,14 @@ export function useDocuments() {
         showToast("업로드에 실패했습니다.");
       }
     } catch (err) {
+      clearInterval(interval);
       console.error("[useDocuments] Upload error:", err);
       showToast("서버 연결에 실패했습니다.");
+    } finally {
+      setTimeout(() => {
+        setUploadProgress(null);
+        setUploadingFileName(null);
+      }, 1000);
     }
   };
 
@@ -265,5 +289,7 @@ export function useDocuments() {
     handleSyncR2,
     handleDelete,
     handleDownload,
+    uploadProgress,
+    uploadingFileName,
   };
 }

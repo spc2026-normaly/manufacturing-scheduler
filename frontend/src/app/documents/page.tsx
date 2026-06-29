@@ -27,6 +27,8 @@ export default function DocumentsPage() {
     handleSyncR2,
     handleDelete,
     handleDownload,
+    uploadProgress,
+    uploadingFileName,
   } = useDocuments();
 
   return (
@@ -48,6 +50,8 @@ export default function DocumentsPage() {
           handleDrop={handleDrop}
           handleFileChange={handleFileChange}
           handleSyncR2={handleSyncR2}
+          uploadProgress={uploadProgress}
+          uploadingFileName={uploadingFileName}
         />
 
         {/* ── Templates Panel ── */}

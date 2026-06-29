@@ -140,11 +140,14 @@ def generate_and_upload_schedule(
                 daily_work_minutes=daily_work_minutes,
                 start_date=today,
                 work_days=work_days,
-                time_limit_seconds=60,
+                time_limit_seconds=120,   # 60 → 120초로 증가
             )
+            if schedule_df.empty:
+                logger.warning("CP-SAT 해 없음(INFEASIBLE/TIMEOUT) — backward 시뮬레이션으로 폴백")
+                mode = "backward"
         except Exception as e:
-            logger.error(f"CP-SAT 실패 ({e}) — forward 시뮬레이션으로 폴백")
-            mode = "forward"
+            logger.error(f"CP-SAT 실패 ({e}) — backward 시뮬레이션으로 폴백")
+            mode = "backward"
 
     if schedule_df.empty and mode in ("forward", "backward"):
         # ── Multi-start Greedy ────────────────────────────────────────────────

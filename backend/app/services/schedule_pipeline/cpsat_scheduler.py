@@ -383,7 +383,9 @@ def schedule_with_cpsat(
             "작업시간_분": dur,
             "납기일":      order["due_date"].strftime("%Y-%m-%d"),
             "납기상태":    status_str,
+            "지연원인":    "정상 완료" if status_str == "납기내완료" else "CP-SAT 최적화 후 납기초과",
         })
+
 
     result_df = pd.DataFrame(schedule_rows)
     if not result_df.empty:

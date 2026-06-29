@@ -331,6 +331,7 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
 
     appendMessage({ sender: "bot", text: reply, time: getTimeString() });
     loadSessionsList();
+    window.dispatchEvent(new CustomEvent("data-updated"));
   } catch (err) {
     appendMessage({ sender: "bot", text: "⚠️ 서버와 통신 중 오류가 발생했습니다.", time: getTimeString() });
   } finally {

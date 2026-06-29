@@ -79,6 +79,17 @@ export function useDocuments() {
     loadDocuments();
   }, []);
 
+  useEffect(() => {
+    const handleDataUpdated = () => {
+      console.log("[useDocuments] received 'data-updated' event, reloading documents list...");
+      loadDocuments();
+    };
+    window.addEventListener("data-updated", handleDataUpdated);
+    return () => {
+      window.removeEventListener("data-updated", handleDataUpdated);
+    };
+  }, []);
+
   const addUploadedFile = async (file: File) => {
     console.log("[useDocuments] addUploadedFile started for:", file.name);
     const supportedTypes = ["csv", "xlsx", "pdf", "txt", "docx"];
@@ -96,6 +107,7 @@ export function useDocuments() {
       if (res.ok) {
         showToast(`'${file.name}' 파일이 업로드되었습니다.`);
         loadDocuments();
+        window.dispatchEvent(new CustomEvent("data-updated"));
       } else {
         showToast("업로드에 실패했습니다.");
       }
@@ -112,6 +124,7 @@ export function useDocuments() {
       if (res.ok) {
         showToast(`'${doc.file_name}' 파일이 삭제되었습니다.`);
         loadDocuments();
+        window.dispatchEvent(new CustomEvent("data-updated"));
       } else {
         showToast("삭제에 실패했습니다.");
       }
@@ -159,6 +172,7 @@ export function useDocuments() {
         const result = await res.json();
         setScheduleStatus("completed");
         showToast(`✅ 일정 ${result.saved_count}개가 생성되었습니다!`);
+        window.dispatchEvent(new CustomEvent("data-updated"));
       } else {
         const errText = await res.text();
         console.error("❌ 에러:", errText);
@@ -196,6 +210,7 @@ export function useDocuments() {
       } else {
         setR2SyncMessage({ type: 'success', message: 'Cloud fare R2 저장소의 csv 파일이 DB에 반영되었습니다!' });
         showToast("✅ 동기화 완료!");
+        window.dispatchEvent(new CustomEvent("data-updated"));
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "알 수 없는 오류";

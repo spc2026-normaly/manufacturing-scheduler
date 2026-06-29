@@ -279,6 +279,17 @@ export function useSchedules() {
   }, [currentTab, selectedDate, factoryFilter, orderNumFilter, monthWeeks]);
 
   useEffect(() => {
+    const handleDataUpdated = () => {
+      console.log("[useSchedules] received 'data-updated' event, reloading schedules...");
+      loadSchedules();
+    };
+    window.addEventListener("data-updated", handleDataUpdated);
+    return () => {
+      window.removeEventListener("data-updated", handleDataUpdated);
+    };
+  }, [currentTab, selectedDate, factoryFilter, orderNumFilter, monthWeeks]);
+
+  useEffect(() => {
     const fetchSummary = async () => {
       try {
         const res = await fetchSummaryApi(toYmd(selectedDate));

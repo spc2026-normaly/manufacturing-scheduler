@@ -54,6 +54,17 @@ export function useEquipments() {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    const handleDataUpdated = () => {
+      console.log("[useEquipments] received 'data-updated' event, reloading equipment data...");
+      fetchData();
+    };
+    window.addEventListener("data-updated", handleDataUpdated);
+    return () => {
+      window.removeEventListener("data-updated", handleDataUpdated);
+    };
+  }, []);
+
   const totalEquipmentsCount = equipments.reduce((sum, e) => sum + (e.eq_count || 0), 0);
   const totalAvailableCount = equipments.reduce((sum, e) => sum + (e.available_eq_count || 0), 0);
 

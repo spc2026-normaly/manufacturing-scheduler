@@ -139,87 +139,120 @@ export function useDashboard() {
     return checkDate.getTime() === selDate.getTime();
   });
 
+  const checkHealth = async () => {
+    try {
+      const res = await checkBackendHealth();
+      if (res.ok) {
+        setHealth(await res.json());
+      }
+    } catch (e) {
+      console.error("Backend health check failed:", e);
+    }
+  };
+
+  const fetchDashboardData = async () => {
+    try {
+      // 1. Fetch employee total count
+      const empRes = await fetchEmployeesCount();
+      if (empRes.ok) {
+        const empData = await empRes.json();
+        setEmployeesCount(empData.total);
+      }
+
+      // 2. Fetch safety training records for completion rate
+      const stRes = await fetchSafetyTrainings();
+      if (stRes.ok) {
+        const stData = await stRes.json();
+        if (stData.length > 0) {
+          const completed = stData.filter((t: any) => {
+            const status = String(t.training_status).toUpperCase();
+            return status === "COMPLETED" || status === "유효";
+          }).length;
+          const rate = Math.round((completed / stData.length) * 1000) / 10;
+          setCompletionRate(rate);
+        }
+      }
+
+      // 3. Fetch all equipments
+      const eqRes = await fetchAllEquipments();
+      if (eqRes.ok) {
+        const allEquipments = await eqRes.json();
+        setEquipments(allEquipments);
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const deadline = new Date(today);
+        deadline.setDate(today.getDate() + 7);
+        deadline.setHours(23, 59, 59, 999);
+        
+        const upcomingEq = allEquipments.filter((item: any) => {
+          if (!item.check_date) return false;
+          const checkDate = new Date(item.check_date);
+          return checkDate >= today && checkDate <= deadline;
+        });
+        
+        setUpcomingCount(upcomingEq.length);
+        
+        const mapped = upcomingEq.slice(0, 4).map((item: any) => {
+          const target = new Date(item.check_date);
+          const diffTime = target.getTime() - today.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          return {
+            name: `${item.eq_name} (${item.eq_status})`,
+            dday: diffDays >= 0 ? `D-${diffDays}` : "만료",
+            urgent: diffDays <= 3
+          };
+        });
+        setUpcomingList(mapped);
+      }
+
+      // 4. Fetch documents count
+      const docRes = await fetchDocuments();
+      if (docRes.ok) {
+        const docData = await docRes.json();
+        setDocumentsCount(docData.length);
+      }
+
+    } catch (err) {
+      console.error("Failed to load dashboard data from backend", err);
+    }
+  };
+
+  const fetchCalendar = async () => {
+    try {
+      const res = await fetchCalendarSummary(
+        calendarView,
+        toYmd(selectedDate),
+        factoryFilter
+      );
+
+      if (!res.ok) {
+        throw new Error(`calendar fetch failed: ${res.status}`);
+      }
+
+      const data: CalendarScheduleDto[] = await res.json();
+      const mapped: CalendarTask[] = data.map((row) => ({
+        id: row.id,
+        facility: row.facility,
+        taskName: row.task_name,
+        taskType: row.task_type,
+        equipment: row.equipment,
+        workers: row.workers ?? [],
+        product: row.product,
+        orderNum: row.order_num,
+        startDate: new Date(row.start_date),
+        endDate: new Date(row.end_date),
+      }));
+
+      setCalendarTasks(mapped);
+    } catch (error) {
+      console.error("Failed to load calendar summary data", error);
+      setCalendarTasks([]);
+    }
+  };
+
   // Fetch API Health & Dashboard data
   useEffect(() => {
-    const checkHealth = async () => {
-      try {
-        const res = await checkBackendHealth();
-        if (res.ok) {
-          setHealth(await res.json());
-        }
-      } catch (e) {
-        console.error("Backend health check failed:", e);
-      }
-    };
-
-    const fetchDashboardData = async () => {
-      try {
-        // 1. Fetch employee total count
-        const empRes = await fetchEmployeesCount();
-        if (empRes.ok) {
-          const empData = await empRes.json();
-          setEmployeesCount(empData.total);
-        }
-
-        // 2. Fetch safety training records for completion rate
-        const stRes = await fetchSafetyTrainings();
-        if (stRes.ok) {
-          const stData = await stRes.json();
-          if (stData.length > 0) {
-            const completed = stData.filter((t: any) => {
-              const status = String(t.training_status).toUpperCase();
-              return status === "COMPLETED" || status === "유효";
-            }).length;
-            const rate = Math.round((completed / stData.length) * 1000) / 10;
-            setCompletionRate(rate);
-          }
-        }
-
-        // 3. Fetch all equipments
-        const eqRes = await fetchAllEquipments();
-        if (eqRes.ok) {
-          const allEquipments = await eqRes.json();
-          setEquipments(allEquipments);
-          
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const deadline = new Date(today);
-          deadline.setDate(today.getDate() + 7);
-          deadline.setHours(23, 59, 59, 999);
-          
-          const upcomingEq = allEquipments.filter((item: any) => {
-            if (!item.check_date) return false;
-            const checkDate = new Date(item.check_date);
-            return checkDate >= today && checkDate <= deadline;
-          });
-          
-          setUpcomingCount(upcomingEq.length);
-          
-          const mapped = upcomingEq.slice(0, 4).map((item: any) => {
-            const target = new Date(item.check_date);
-            const diffTime = target.getTime() - today.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            return {
-              name: `${item.eq_name} (${item.eq_status})`,
-              dday: diffDays >= 0 ? `D-${diffDays}` : "만료",
-              urgent: diffDays <= 3
-            };
-          });
-          setUpcomingList(mapped);
-        }
-
-        // 4. Fetch documents count
-        const docRes = await fetchDocuments();
-        if (docRes.ok) {
-          const docData = await docRes.json();
-          setDocumentsCount(docData.length);
-        }
-
-      } catch (err) {
-        console.error("Failed to load dashboard data from backend", err);
-      }
-    };
-
     checkHealth();
     fetchDashboardData();
     const id = setInterval(checkHealth, 15000);
@@ -227,40 +260,20 @@ export function useDashboard() {
   }, []);
 
   useEffect(() => {
-    const fetchCalendar = async () => {
-      try {
-        const res = await fetchCalendarSummary(
-          calendarView,
-          toYmd(selectedDate),
-          factoryFilter
-        );
-
-        if (!res.ok) {
-          throw new Error(`calendar fetch failed: ${res.status}`);
-        }
-
-        const data: CalendarScheduleDto[] = await res.json();
-        const mapped: CalendarTask[] = data.map((row) => ({
-          id: row.id,
-          facility: row.facility,
-          taskName: row.task_name,
-          taskType: row.task_type,
-          equipment: row.equipment,
-          workers: row.workers ?? [],
-          product: row.product,
-          orderNum: row.order_num,
-          startDate: new Date(row.start_date),
-          endDate: new Date(row.end_date),
-        }));
-
-        setCalendarTasks(mapped);
-      } catch (error) {
-        console.error("Failed to load calendar summary data", error);
-        setCalendarTasks([]);
-      }
-    };
-
     fetchCalendar();
+  }, [calendarView, selectedDate, factoryFilter]);
+
+  // Event listener for data updates
+  useEffect(() => {
+    const handleDataUpdated = () => {
+      console.log("[useDashboard] received 'data-updated' event, reloading dashboard...");
+      fetchDashboardData();
+      fetchCalendar();
+    };
+    window.addEventListener("data-updated", handleDataUpdated);
+    return () => {
+      window.removeEventListener("data-updated", handleDataUpdated);
+    };
   }, [calendarView, selectedDate, factoryFilter]);
 
   return {

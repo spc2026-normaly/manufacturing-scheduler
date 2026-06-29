@@ -123,6 +123,17 @@ export function useSafetyTraining() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    const handleDataUpdated = () => {
+      console.log("[useSafetyTraining] received 'data-updated' event, reloading safety training data...");
+      loadData();
+    };
+    window.addEventListener("data-updated", handleDataUpdated);
+    return () => {
+      window.removeEventListener("data-updated", handleDataUpdated);
+    };
+  }, []);
+
   const filteredWorkers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return workersData;

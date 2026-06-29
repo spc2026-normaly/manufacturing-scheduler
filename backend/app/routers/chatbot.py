@@ -562,6 +562,11 @@ def _normalize_csv_text(csv_text: str) -> str:
 
 def _next_version_file_name(db: Session, base_name: str, ext: str) -> str:
     """기존 버전 중 최대 버전 번호 + 1로 새 버전 파일명 생성 (예: base_v0.3.csv)"""
+    # 기존 파일명에 이미 버전 접미사(_v0.x)가 있다면 제거하여 원본 베이스명을 획득합니다.
+    match = CSV_VERSION_SUFFIX_PATTERN.search(base_name)
+    if match:
+        base_name = CSV_VERSION_SUFFIX_PATTERN.sub("", base_name)
+
     existing_names = db.execute(
         select(Document.file_name).where(Document.file_name.startswith(f"{base_name}_v"))
     ).scalars().all()
@@ -569,9 +574,10 @@ def _next_version_file_name(db: Session, base_name: str, ext: str) -> str:
     max_version = 0
     for name in existing_names:
         stem = name.rsplit(".", 1)[0]
-        match = CSV_VERSION_SUFFIX_PATTERN.search(stem[len(base_name):])
-        if match:
-            max_version = max(max_version, int(match.group(1)))
+        suffix = stem[len(base_name):]
+        match_ver = CSV_VERSION_SUFFIX_PATTERN.search(suffix)
+        if match_ver:
+            max_version = max(max_version, int(match_ver.group(1)))
 
     return f"{base_name}_v0.{max_version + 1}.{ext}"
 

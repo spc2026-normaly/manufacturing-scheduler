@@ -21,6 +21,15 @@ interface AIChatbotProps {
   initialMessages?: ChatMessage[];
 }
 
+// ── 편집 의도 감지 ──────────────────────────────────────────────────
+// ".csv"를 직접 적지 않아도 "~에서 ... 바꿔줘/변경해줘/수정해줘" 형태면 R2 문서 수정 요청으로 인식
+const EDIT_VERB_KEYWORDS = ["바꿔", "바꾸", "변경", "수정", "고쳐"];
+
+function isCsvEditRequest(message: string): boolean {
+  if (message.toLowerCase().includes(".csv")) return true;
+  return message.includes("에서") && EDIT_VERB_KEYWORDS.some((kw) => message.includes(kw));
+}
+
 // ── API calls ──────────────────────────────────────────────────────
 async function fetchBotReply(message: string, sessionId: string | null, file?: File): Promise<{ reply: string; sessionId: string }> {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -40,7 +49,7 @@ async function fetchBotReply(message: string, sessionId: string | null, file?: F
     return { reply: data.reply, sessionId: data.session_id || sessionId || "" };
   }
 
-  if (message.toLowerCase().includes(".csv")) {
+  if (isCsvEditRequest(message)) {
     const formData = new FormData();
     formData.append("message", message);
     const res = await fetch("/api/chatbot/edit-r2-document", {
@@ -272,19 +281,45 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
     setChatMessages((prev) => [...prev, msg]);
 
   const handleSend = async (text: string) => {
-    if (!text.trim() || isLoading) return;
-    const userMsg = text.trim();
-    const fileLabel = attachedFile ? ` 📎 ${attachedFile.name}` : "";
-    appendMessage({ sender: "user", text: userMsg + fileLabel, time: getTimeString() });
-    setIsLoading(true);
-    try {
+  if (!text.trim() || isLoading) return;
+  const userMsg = text.trim();
+  const fileLabel = attachedFile ? ` 📎 ${attachedFile.name}` : "";
+  appendMessage({ sender: "user", text: userMsg + fileLabel, time: getTimeString() });
+  setIsLoading(true);
+  try {
+    const SQL_KEYWORDS = [
+      "안전교육", "이수", "만료", "교육명", "교육 현황",
+      "장비", "점검", "수량", "사용가능",
+      "직원", "입사", "역할", "몇 명",
+      "주문", "납기", "제품", "주문번호",
+      "일정", "공장", "작업", "스케줄",
+    ];
+    // 편집 의도(파일 수정 요청)가 있으면 Text-to-SQL(읽기 전용)보다 우선
+    const isEditRequest = isCsvEditRequest(userMsg);
+    const isDataQuery = !isEditRequest && SQL_KEYWORDS.some(kw => userMsg.includes(kw));
+
+    let reply = "";
+
+    if (isDataQuery && !attachedFile) {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const res = await fetch("/api/chatbot/text-to-sql", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message: userMsg }),
+      });
+      if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
+      const data: { reply: string; source: string } = await res.json();
+      reply = data.reply;
+    } else {
       const result = await fetchBotReply(userMsg, sessionId, attachedFile || undefined);
-      
-      // 세션 ID가 바뀐 경우 동기화
+      reply = result.reply;
+
       if (result.sessionId && result.sessionId !== sessionId) {
         setSessionId(result.sessionId);
         localStorage.setItem("chatbot_current_session_id", result.sessionId);
-
         const localIdsStr = localStorage.getItem("chatbot_local_session_ids") || "";
         const localIds = localIdsStr ? localIdsStr.split(",") : [];
         if (!localIds.includes(result.sessionId)) {
@@ -292,16 +327,17 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
           localStorage.setItem("chatbot_local_session_ids", localIds.join(","));
         }
       }
-      
-      appendMessage({ sender: "bot", text: result.reply, time: getTimeString() });
-      loadSessionsList();
-    } catch (err) {
-      appendMessage({ sender: "bot", text: "⚠️ 서버와 통신 중 오류가 발생했습니다.", time: getTimeString() });
-    } finally {
-      setIsLoading(false);
-      setAttachedFile(null);
     }
-  };
+
+    appendMessage({ sender: "bot", text: reply, time: getTimeString() });
+    loadSessionsList();
+  } catch (err) {
+    appendMessage({ sender: "bot", text: "⚠️ 서버와 통신 중 오류가 발생했습니다.", time: getTimeString() });
+  } finally {
+    setIsLoading(false);
+    setAttachedFile(null);
+  }
+};
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -497,64 +533,13 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
                 <div key={index} className={`chat-message ${msg.sender}`}>
                   <div className="message-bubble-wrapper">
                     <div className="message-bubble">
-                      {msg.text.split("\n").map((line, lIdx) => {
-                        const cleanLine = line.replace(/📥\s*/, "");
-                        const linkMatch = cleanLine.match(/\[(.+?)\]\((\/api\/.+?)\)/);
-                        if (linkMatch) {
-                          return (
-                            <p key={lIdx} style={{ margin: "2px 0" }}> 
-                              <a
-                                href={linkMatch[2]}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{ color: "#3b82f6", textDecoration: "underline", cursor: "pointer" }}
-                              >
-                                {linkMatch[1]}
-                              </a>
-                            </p>
-                          );
-                        }
-                        return (
-                          <p key={lIdx} style={{ margin: line === "" ? "8px 0" : "2px 0" }}>
-                            {line.split("**").map((part, pIdx) =>
-                              pIdx % 2 === 1 ? (
-                                <strong key={pIdx} style={{ color: "var(--accent-blue)" }}>{part}</strong>
-                              ) : (
-                                part
-                              )
-                            )}
-                          </p>
-                        );
-                      })}
+                      {msg.text.split("\n").map((line, lIdx) => renderLine(line, lIdx))}
                     </div>
                     <span className="message-time">{msg.time}</span>
                   </div>
                 </div>
               ))}
               <div ref={messagesEndRef} />
-            </div>
-
-            {/* 빠른 질문 제안 */}
-            <div className="chat-suggestions">
-              <span className="chat-suggestions-title">💡 자주 묻는 질문</span>
-              <button
-                className="suggestion-btn"
-                onClick={() => handleSuggestionClick("압축기 점검 주기는 어떻게 되나요?")}
-              >
-                압축기 점검 주기는 어떻게 되나요?
-              </button>
-              <button
-                className="suggestion-btn"
-                onClick={() => handleSuggestionClick("B공장 보일러 점검 체크리스트 보여줘")}
-              >
-                B공장 보일러 점검 체크리스트 보여줘
-              </button>
-              <button
-                className="suggestion-btn"
-                onClick={() => handleSuggestionClick("안전교육 미이수자 명단을 알려줘")}
-              >
-                안전교육 미이수자 명단을 알려줘
-              </button>
             </div>
 
             {/* 입력창 */}

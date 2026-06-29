@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 import uuid
 import os
 from datetime import datetime
@@ -9,12 +10,16 @@ from fastapi.responses import FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt
 from openai import OpenAI
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.schemas.chatbot import ChatRequest, ChatResponse, ChatMessageItem, ChatSessionItem
-from app.services.document_service import search_rag_chunks
+from app.services.document_service import search_rag_chunks, get_document_bytes, _upsert_document_metadata
+from app.services.csv_sync_service import sync_schedule_input_csv
+from app.services.r2_service import upload_bytes_to_r2
+from app.models.document import Document
 from app.models.employee import Employee
 from app.models.chat_session import ChatSession
 from app.models.chatbot_log import ChatbotLog
@@ -446,7 +451,131 @@ def download_file(filename: str):
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
     return FileResponse(path=filepath, filename=filename, media_type="text/csv")
 
-# ─── DB 문서 찾아서 R2에서 수정 후 재업로드 ──────────────────
+# ─── R2 문서 수정 (DB 조회 → R2 다운로드 → GPT 수정 → 버전 재업로드) ─────
+
+CSV_FILENAME_PATTERN = re.compile(r'[\[「『]?([^\]」』\s]+\.csv)[\]」』]?', re.IGNORECASE)
+CSV_ENCODINGS = ("utf-8-sig", "utf-8", "cp949", "euc-kr")
+CSV_VERSION_SUFFIX_PATTERN = re.compile(r'_v0\.(\d+)$')
+
+
+def _extract_csv_file_name(message: str, db: Session) -> Optional[str]:
+    """메시지에서 .csv 파일명을 추출 (대괄호/낫표로 감싸진 경우도 인식).
+    ".csv" 확장자가 없으면 '~에서' 앞부분을 후보로 DB documents에서 가장 근접한 파일명을 찾는다."""
+    match = CSV_FILENAME_PATTERN.search(message)
+    if match:
+        return match.group(1)
+
+    if "에서" not in message:
+        return None
+
+    candidate = message.split("에서", 1)[0].strip(" \t[]「」『』'\"")
+    if not candidate:
+        return None
+
+    return db.execute(
+        select(Document.file_name)
+        .where(Document.file_name.startswith(candidate))
+        .order_by(func.length(Document.file_name))
+    ).scalars().first()
+
+
+def _decode_csv_bytes(data: bytes) -> Optional[str]:
+    """여러 인코딩을 순서대로 시도하여 CSV 바이트를 텍스트로 디코딩"""
+    for encoding in CSV_ENCODINGS:
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return None
+
+
+def _edit_csv_with_gpt(db: Session, message: str, file_name: str, csv_text: str) -> tuple[str, Optional[str]]:
+    """GPT-4o-mini에게 CSV 수정을 요청하고 (응답 메시지, 수정된 CSV) 튜플을 반환. CSV 수정이 아니면 csv는 None."""
+    prompt = f"""사용자 요청: {message}
+
+[파일: {file_name}]
+{csv_text}
+
+위 CSV 파일을 사용자 요청에 맞게 수정해주세요.
+
+규칙:
+- 미완료/미이수로 변경 시 해당 교육의 이수일 컬럼과 만료일 컬럼만 빈 값("")으로 변경, 다른 교육 컬럼은 절대 건드리지 말 것
+- 예시: "교육1 미이수"면 "교육1 이수일", "교육1 만료일"만 비우고 교육2~5는 그대로 유지
+- 헤더 행은 절대 변경하지 말 것
+- 수정 대상 행 외 나머지 행도 절대 변경하지 말 것
+- 장비 데이터 수정 시 변경 요청한 컬럼만 수정하고 나머지 컬럼은 절대 건드리지 말 것
+- 장비 컬럼 목록: 장비ID, 장비명, 장비기호, 장비 전체, 가용 장비, 점검 주기, 다음 점검일, 최근 점검일, 적용제품군장비 휴식, 내구도, 장비휴식시간(분)
+- 날짜 형식은 항상 YYYY-MM-DD 유지
+- 숫자 컬럼은 숫자만 입력 (단위 텍스트 제외, 예: "30일" → "30")
+- 수정 대상 행 외 나머지 행은 절대 변경하지 말 것
+- 세미콜론(;)으로 구분된 컬럼값은 그대로 유지
+- 작업 데이터 수정 시 변경 요청한 컬럼만 수정하고 나머지 컬럼은 절대 건드리지 말 것
+- 작업 컬럼 목록: 작업ID, 작업명, 작업구분, 작업단계, 사용공장동, 필요장비, 작업시간_분, 적용제품군
+- 작업구분은 "공정" 또는 "테스트"만 허용
+- 필요장비는 세미콜론(;)으로 구분된 형식 유지 (예: 장비1;장비4)
+- 작업시간_분은 숫자만 입력
+- 수정 대상 행 외 나머지 행은 절대 변경하지 말 것
+
+응답 형식:
+REPLY: (사용자에게 보여줄 메시지)
+CSV:
+(수정된 CSV 내용)"""
+
+    response = client.chat.completions.create(
+        model=settings.OPENAI_CHAT_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+    )
+
+    usage = response.usage
+    if usage:
+        log_token_usage(
+            db=db,
+            feature="chatbot_edit_r2_document",
+            model_name=settings.OPENAI_CHAT_MODEL,
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            total_tokens=usage.total_tokens,
+        )
+
+    result = response.choices[0].message.content.strip()
+    result = result.replace("```csv", "").replace("```", "").strip()
+
+    if "CSV:" not in result:
+        return result, None
+
+    reply_part, csv_part = result.split("CSV:", 1)
+    return reply_part.replace("REPLY:", "").strip(), csv_part.strip()
+
+
+def _normalize_csv_text(csv_text: str) -> str:
+    """GPT가 반환한 CSV를 csv 모듈로 재파싱/재작성하여 따옴표·개행을 표준화"""
+    try:
+        rows = list(csv.reader(io.StringIO(csv_text)))
+    except csv.Error:
+        return csv_text
+
+    buffer = io.StringIO()
+    csv.writer(buffer, quoting=csv.QUOTE_MINIMAL, lineterminator="\n").writerows(rows)
+    return buffer.getvalue()
+
+
+def _next_version_file_name(db: Session, base_name: str, ext: str) -> str:
+    """기존 버전 중 최대 버전 번호 + 1로 새 버전 파일명 생성 (예: base_v0.3.csv)"""
+    existing_names = db.execute(
+        select(Document.file_name).where(Document.file_name.startswith(f"{base_name}_v"))
+    ).scalars().all()
+
+    max_version = 0
+    for name in existing_names:
+        stem = name.rsplit(".", 1)[0]
+        match = CSV_VERSION_SUFFIX_PATTERN.search(stem[len(base_name):])
+        if match:
+            max_version = max(max_version, int(match.group(1)))
+
+    return f"{base_name}_v0.{max_version + 1}.{ext}"
+
+
 @router.post("/chatbot/edit-r2-document", response_model=ChatResponse, summary="R2 문서 수정")
 async def edit_r2_document(
     message: str = Form(...),
@@ -456,22 +585,16 @@ async def edit_r2_document(
     DB에서 파일명으로 문서 찾기 → R2 다운로드 → GPT 수정 → 버전 이름으로 R2 재업로드
     예시: "직원안전교육.csv에서 정우진 교육1을 미완료로 바꿔줘"
     """
-    from app.models.document import Document
-    from app.services.r2_service import upload_bytes_to_r2
-    from app.services.document_service import get_document_bytes, _upsert_document_metadata
-    from app.services.csv_sync_service import sync_schedule_input_csv
-    from sqlalchemy import select
-    import re
-
-    # 1. 메시지에서 파일명 추출 (따옴표 또는 .csv 확장자로 감지)
-    file_name_match = re.search(r'[\[「『]?([^\]」』\s]+\.csv)[\]」』]?', message, re.IGNORECASE)
-    if not file_name_match:
-        return ChatResponse(reply="파일명을 찾을 수 없습니다. 예시: '직원안전교육.csv에서 정우진 교육1을 미완료로 바꿔줘'", source="gpt")
-
-    file_name = file_name_match.group(1)
+    # 1. 메시지에서 파일명 추출
+    file_name = _extract_csv_file_name(message, db)
+    if not file_name:
+        return ChatResponse(
+            reply="파일명을 찾을 수 없습니다. 예시: '직원안전교육.csv에서 정우진 교육1을 미완료로 바꿔줘'",
+            source="gpt",
+        )
 
     # 2. DB에서 파일 찾기
-    doc = db.execute(select(Document).where(Document.file_name == file_name)).scalar_one_or_none()
+    doc = db.execute(select(Document).where(Document.file_name == file_name)).scalars().first()
     if not doc:
         return ChatResponse(reply=f"'{file_name}' 파일을 DB에서 찾을 수 없습니다. 파일명을 정확히 입력해주세요.", source="gpt")
 
@@ -482,101 +605,172 @@ async def edit_r2_document(
         return ChatResponse(reply=f"R2에서 파일을 가져오는 중 오류가 발생했습니다: {e}", source="gpt")
 
     # 4. CSV 디코딩
-    decoded = ""
-    for encoding in ["utf-8-sig", "utf-8", "cp949", "euc-kr"]:
-        try:
-            decoded = file_bytes.decode(encoding)
-            break
-        except UnicodeDecodeError:
-            continue
-
-    if not decoded:
+    decoded = _decode_csv_bytes(file_bytes)
+    if decoded is None:
         return ChatResponse(reply="CSV 파일 인코딩을 인식할 수 없습니다.", source="gpt")
 
     # 5. GPT에 수정 요청
-    prompt = f"""사용자 요청: {message}
+    try:
+        gpt_reply, csv_data = _edit_csv_with_gpt(db=db, message=message, file_name=file_name, csv_text=decoded)
+    except Exception as e:
+        return ChatResponse(reply=f"GPT 응답 생성 중 오류가 발생했습니다: {e}", source="gpt")
 
-[파일: {file_name}]
-{decoded}
+    if csv_data is None:
+        # CSV 수정이 필요 없는 일반 답변
+        return ChatResponse(reply=gpt_reply, source="gpt")
 
-위 CSV 파일을 사용자 요청에 맞게 수정해주세요.
-응답 형식:
-REPLY: (사용자에게 보여줄 메시지)
-CSV:
-(수정된 CSV 내용, 헤더 포함, 모든 행)
+    # 변경 내용 설명 없이 완료 메시지만 응답 (다운로드 버튼으로 결과 확인)
+    reply_text = "수정이 완료되었습니다."
 
-CSV 생성 시 주의사항:
-- 미완료로 변경 시 해당 교육의 이수일, 만료일 컬럼 둘 다 빈 값("")으로 변경
-- 모든 행을 포함해야 함
-- 원본 데이터 형식 유지
-- JSON이나 코드블록 없이 순수 CSV만 반환"""
-
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-    )
-
-    result = response.choices[0].message.content.strip()
-    result = result.replace("```csv", "").replace("```", "").strip()
-
-    if "CSV:" not in result:
-        return ChatResponse(reply=result, source="gpt")
-
-    parts = result.split("CSV:", 1)
-    reply_text = parts[0].replace("REPLY:", "").strip()
-    csv_data = parts[1].strip()
-
-    # 6. 버전 이름 생성 (예: 직원안전교육_v0.1.csv)
-    base_name = file_name.rsplit(".", 1)[0]
-    ext = file_name.rsplit(".", 1)[1]
-
-    # 기존 버전 찾기
-    existing_versions = db.execute(
-        select(Document).where(Document.file_name.like(f"{base_name}_v%"))
-    ).scalars().all()
-
-    version_num = len(existing_versions) + 1
-    new_file_name = f"{base_name}_v0.{version_num}.{ext}"
+    # 6. CSV 형식 표준화 + 버전 이름 생성 (예: 직원안전교육_v0.1.csv)
+    normalized_csv = _normalize_csv_text(csv_data)
+    base_name, ext = file_name.rsplit(".", 1)
+    new_file_name = _next_version_file_name(db, base_name, ext)
 
     # 7. R2 경로 설정 (원본과 같은 폴더)
-    original_prefix = "/".join(doc.file_path.split("/")[:-1]) + "/"
+    original_prefix = doc.file_path.rsplit("/", 1)[0] + "/" if "/" in doc.file_path else ""
     new_r2_key = f"{original_prefix}{new_file_name}"
+    new_bytes = normalized_csv.encode("utf-8-sig")
 
-    # 8. 수정된 CSV를 바이트로 변환
-    new_bytes = csv_data.encode("utf-8-sig")
-
-    # 9. R2에 업로드
+    # 8. R2에 업로드
     try:
         upload_bytes_to_r2(data=new_bytes, r2_key=new_r2_key, content_type="text/csv")
     except Exception as e:
         return ChatResponse(reply=f"R2 업로드 중 오류가 발생했습니다: {e}", source="gpt")
 
-    # 10. DB에 새 문서 메타데이터 저장
-    from datetime import datetime
-    new_doc, _ = _upsert_document_metadata(
-        db,
-        uploader=doc.uploader,
-        file_name=new_file_name,
-        file_size=len(new_bytes),
-        file_extension=ext,
-        file_path=new_r2_key,
-        file_updated_at=datetime.utcnow(),
+    # 9. DB에 새 문서 메타데이터 저장 (+ 안전교육 CSV면 관련 테이블도 동기화)
+    try:
+        new_doc, _ = _upsert_document_metadata(
+            db,
+            uploader=doc.uploader,
+            file_name=new_file_name,
+            file_size=len(new_bytes),
+            file_extension=ext,
+            file_path=new_r2_key,
+            file_updated_at=datetime.utcnow(),
+        )
+
+        if "안전교육" in file_name or "safety" in file_name.lower():
+            try:
+                sync_schedule_input_csv(db=db, file_name=new_file_name, file_bytes=new_bytes)
+                reply_text += "\n✅ 안전교육 DB도 업데이트되었습니다."
+            except Exception as e:
+                reply_text += f"\n⚠️ 안전교육 DB 업데이트 실패: {e}"
+
+        db.commit()
+        db.refresh(new_doc)
+    except Exception as e:
+        db.rollback()
+        return ChatResponse(reply=f"DB 저장 중 오류가 발생했습니다: {e}", source="gpt")
+
+    # 10. 다운로드 링크 반환
+    reply_text += f"\n\n📥 DOWNLOAD:{new_doc.file_id}:{new_file_name}"
+    return ChatResponse(reply=reply_text, source="gpt")
+
+# ─── Text-to-SQL 엔드포인트 ──────────────────────────────────
+DB_SCHEMA = """
+테이블 목록 및 스키마:
+
+1. employees (직원)
+   - emp_id: 직원ID (PK)
+   - login_id: 로그인ID
+   - emp_name: 이름
+   - emp_role: 역할 (leader/member)
+   - emp_date: 입사일
+
+2. safety_training (안전교육)
+   - training_id: 교육ID (PK)
+   - emp_id: 직원ID (FK -> employees)
+   - training_name: 교육명
+   - training_date: 이수일
+   - expired_date: 만료일
+   - training_status: 상태 (completed 등)
+
+3. equipments (장비)
+   - eq_id: 장비ID (PK)
+   - eq_name: 장비명
+   - eq_count: 전체수량
+   - available_eq_count: 사용가능수량
+   - check_cycle: 점검주기(일)
+   - eq_status: 상태
+   - check_date: 다음점검일
+   - recent_check_date: 최근점검일
+
+4. orders (주문)
+   - order_id: 주문ID (PK)
+   - order_num: 주문번호
+   - product_name: 제품명
+   - order_count: 수량
+   - due_date: 납기일
+   - order_status: 상태
+
+5. schedules (일정)
+   - id: 일정ID (PK)
+   - task_id: 작업ID
+   - order_id: 주문ID
+   - start_date: 시작일
+   - end_date: 종료일
+   - factory: 공장
+"""
+
+@router.post("/chatbot/text-to-sql", response_model=ChatResponse, summary="Text-to-SQL 기반 데이터 조회")
+async def text_to_sql(
+    body: ChatRequest,
+    db: Session = Depends(get_db),
+) -> ChatResponse:
+    from sqlalchemy import text as sql_text
+
+    # 1. LLM에게 SQL 생성 요청
+    sql_prompt = f"""당신은 PostgreSQL 전문가입니다. 아래 DB 스키마를 보고 사용자 질문에 맞는 SQL 쿼리를 생성해주세요.
+
+{DB_SCHEMA}
+
+사용자 질문: {body.message}
+
+규칙:
+- SELECT 쿼리만 생성 (INSERT/UPDATE/DELETE 금지)
+- 결과는 SQL 쿼리만 반환 (설명 없이)
+- 코드블록(```) 없이 순수 SQL만
+- employees 테이블 join 시 emp_name 컬럼 사용
+- 한국어 이름으로 검색할 때는 employees.emp_name 사용"""
+
+    sql_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": sql_prompt}],
+        temperature=0,
     )
 
-    # 11. 안전교육 CSV면 DB도 업데이트
-    if "안전교육" in file_name or "safety" in file_name.lower():
-        try:
-            sync_result = sync_schedule_input_csv(
-                db=db, file_name=new_file_name, file_bytes=new_bytes
-            )
-            reply_text += f"\n✅ 안전교육 DB도 업데이트되었습니다."
-        except Exception as e:
-            reply_text += f"\n⚠️ 안전교육 DB 업데이트 실패: {e}"
+    generated_sql = sql_response.choices[0].message.content.strip()
+    generated_sql = generated_sql.replace("```sql", "").replace("```", "").strip()
 
-    db.commit()
+    # 2. SQL 실행
+    try:
+        result = db.execute(sql_text(generated_sql))
+        rows = result.fetchall()
+        columns = result.keys()
+        
+        if not rows:
+            data_str = "조회 결과가 없습니다."
+        else:
+            header = " | ".join(columns)
+            data_rows = [" | ".join(str(v) for v in row) for row in rows]
+            data_str = header + "\n" + "\n".join(data_rows)
+    except Exception as e:
+        return ChatResponse(reply=f"SQL 실행 오류: {e}\n\n생성된 SQL: {generated_sql}", source="sql")
 
-    # 12. 다운로드 링크 반환
-    reply_text += f"\n\n📥 DOWNLOAD:{new_doc.file_id}:{new_file_name}"
+    # 3. 결과를 LLM에 줘서 자연어 답변 생성
+    answer_prompt = f"""사용자 질문: {body.message}
 
-    return ChatResponse(reply=reply_text, source="gpt")
+조회 결과:
+{data_str}
+
+위 데이터를 바탕으로 사용자 질문에 친절하게 한국어로 답변해주세요."""
+
+    answer_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": answer_prompt}],
+        temperature=0.3,
+    )
+
+    reply = answer_response.choices[0].message.content.strip()
+    return ChatResponse(reply=reply, source="sql")

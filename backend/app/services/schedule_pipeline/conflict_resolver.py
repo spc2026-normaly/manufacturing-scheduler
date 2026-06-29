@@ -104,6 +104,28 @@ def _left_pack_mask(free_mask: int, length: int) -> int:
     return _first_n_bits(free_mask, length)
 
 
+def _find_contiguous_runs(mask: int) -> List[Tuple[int, int]]:
+    """마스크에서 연속된 1비트 구간 (start, length) 목록을 반환."""
+    runs: List[Tuple[int, int]] = []
+    pos = 0
+    remaining = mask
+    while remaining:
+        # 0비트 건너뜀
+        tz = (remaining & -remaining).bit_length() - 1
+        remaining >>= tz
+        pos += tz
+        # 연속 1비트 세기
+        length = 0
+        tmp = remaining
+        while tmp & 1:
+            length += 1
+            tmp >>= 1
+        runs.append((pos, length))
+        remaining >>= length
+        pos += length
+    return runs
+
+
 def _atc_score(due_date: "date", today: "date", proc_minutes: int, avg_proc_days: float, k: float = 2.0) -> float:
     """ATC (Apparent Tardiness Cost) 우선순위 점수.
     높을수록 먼저 처리.
@@ -114,6 +136,27 @@ def _atc_score(due_date: "date", today: "date", proc_minutes: int, avg_proc_days
     avg_p = max(avg_proc_days, 0.001)
     import math as _math
     return _math.exp(-remaining_days / (k * avg_p)) / proc_days
+
+
+def _calc_tardiness(schedule_rows: List[Dict]) -> float:
+    """납기 초과 일수 합계(Objective) 계산. 낮을수록 좋음."""
+    per_order: Dict[str, Dict] = {}
+    for row in schedule_rows:
+        onum = row["주문번호"]
+        if onum not in per_order:
+            per_order[onum] = {"due": row["납기일"], "end": row["종료일"]}
+        else:
+            if row["종료일"] > per_order[onum]["end"]:
+                per_order[onum]["end"] = row["종료일"]
+    total = 0.0
+    for onum, v in per_order.items():
+        try:
+            end_d = datetime.strptime(v["end"], "%Y-%m-%d %H:%M:%S").date()
+            due_d = datetime.strptime(v["due"], "%Y-%m-%d").date()
+            total += max(0, (end_d - due_d).days)
+        except Exception:
+            pass
+    return total
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -129,6 +172,7 @@ def resolve_conflicts(
     start_date: Optional[date] = None,
     work_days: Optional[List[int]] = None,
     mode: str = "forward",   # "forward" | "backward"
+    atc_noise: float = 0.0,   # Multi-start Greedy용 ATC 점수 노이즈 (0 = 고정)
 ) -> pd.DataFrame:
     """
     분 단위 시뮬레이션 기반 일정 수립 엔진.
@@ -312,6 +356,10 @@ def resolve_conflicts(
             o["due_date"], today_ref,
             o["total_estimated_minutes"], avg_proc_days
         )
+    if atc_noise > 0.0:
+        import random
+        for o in orders:
+            o["atc_score"] *= random.uniform(1.0 - atc_noise, 1.0 + atc_noise)
     orders.sort(key=lambda o: -o["atc_score"])   # 높을수록 우선
     logger.info(
         "ATC 우선순위 정렬 완료: "
@@ -658,6 +706,262 @@ def resolve_conflicts(
 
     schedule_rows = _repack_schedule(schedule_rows)
     logger.info("Dynamic Repacking 완료 — Idle Gap 압축 적용됨.")
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 11.7. Gap Fitting — 작업자 Idle Gap에 잔여 작업 Best Fit 삽입
+    # ──────────────────────────────────────────────────────────────────────────
+    def _gap_fit(rows: List[Dict]) -> List[Dict]:
+        """
+        각 (작업자, 날짜) 쌍의 idle 구간을 스캔하여
+        해당 날짜에 아직 시작 안 된 작업 세그먼트 중 Best Fit을 삽입.
+        Best Fit = gap에 딱 맞거나 조금 작은 것 중 가장 큰 작업.
+        """
+        # (날짜, 작업자) → 점유 마스크 재구성
+        wm: Dict[str, Dict[str, int]] = {}   # date_str → worker → mask
+        for row in rows:
+            d_str = row["시작일"][:10]
+            try:
+                s_dt = datetime.strptime(row["시작일"], "%Y-%m-%d %H:%M:%S")
+                e_dt = datetime.strptime(row["종료일"], "%Y-%m-%d %H:%M:%S")
+            except Exception:
+                continue
+            s_slot = (s_dt.hour - 9) * 60 + s_dt.minute
+            e_slot = (e_dt.hour - 9) * 60 + e_dt.minute
+            duration = max(0, e_slot - s_slot)
+            if duration <= 0:
+                continue
+            for w_str in row["배정직원"].split(";"):
+                w_id = w_str.split("(")[0].strip().lower()
+                wm.setdefault(d_str, {})
+                wm[d_str][w_id] = wm[d_str].get(w_id, _LUNCH_MASK) | _make_run_mask(s_slot, duration)
+
+        # 납기 초과 주문의 마지막 종료일(최대 end) 계산
+        order_end: Dict[str, str] = {}
+        for row in rows:
+            onum = row["주문번호"]
+            if onum not in order_end or row["종료일"] > order_end[onum]:
+                order_end[onum] = row["종료일"]
+
+        added_rows: List[Dict] = []
+        for d_str, w_masks in sorted(wm.items()):
+            try:
+                day_date = datetime.strptime(d_str, "%Y-%m-%d").date()
+            except Exception:
+                continue
+            base_dt = datetime.combine(day_date, dt_time(9, 0))
+
+            for w_id, occ_mask in w_masks.items():
+                free_mask_gf = WORK_MASK & ~occ_mask
+                if not free_mask_gf:
+                    continue
+                runs = _find_contiguous_runs(free_mask_gf)
+                if not runs:
+                    continue
+
+                # 이 날짜 이후에 납기 초과 가능한 주문의 작업을 후보로 수집
+                candidates: List[Dict] = []
+                for row in rows:
+                    onum = row["주문번호"]
+                    if row["납기상태"] != "납기초과":
+                        continue
+                    try:
+                        row_start = datetime.strptime(row["시작일"], "%Y-%m-%d %H:%M:%S").date()
+                    except Exception:
+                        continue
+                    if row_start < day_date:
+                        # 이 날보다 일찍 시작된 작업 → 이동 후보
+                        dur_m = row["작업시간_분"]
+                        if dur_m > 0:
+                            candidates.append({"dur": dur_m, "row": row})
+
+                if not candidates:
+                    continue
+
+                for run_start, run_len in runs:
+                    if run_len < 5:   # 5분 미만 갭은 무시
+                        continue
+                    # Best Fit: gap에 들어갈 수 있는 것 중 가장 큰 dur
+                    fits = [c for c in candidates if c["dur"] <= run_len]
+                    if not fits:
+                        continue
+                    best = max(fits, key=lambda c: c["dur"])
+                    dur_m = best["dur"]
+                    src_row = best["row"]
+
+                    new_start = base_dt + timedelta(minutes=run_start)
+                    new_end   = new_start + timedelta(minutes=dur_m)
+                    status = (
+                        "납기내완료"
+                        if new_end.date() <= datetime.strptime(src_row["납기일"], "%Y-%m-%d").date()
+                        else "납기초과"
+                    )
+                    added_rows.append({
+                        **src_row,
+                        "시작일":      new_start.strftime("%Y-%m-%d %H:%M:%S"),
+                        "종료일":      new_end.strftime("%Y-%m-%d %H:%M:%S"),
+                        "작업시간_분": dur_m,
+                        "납기상태":    status,
+                        "배정직원":    src_row["배정직원"],
+                    })
+                    # 사용한 후보 제거 (같은 row 중복 삽입 방지)
+                    candidates = [c for c in candidates if c["row"] is not src_row]
+                    # 점유 마스크 업데이트
+                    occ_mask |= _make_run_mask(run_start, dur_m)
+                    wm[d_str][w_id] = occ_mask
+
+        if added_rows:
+            logger.info(f"Gap Fitting: {len(added_rows)}개 세그먼트 삽입")
+        return rows + added_rows
+
+    # NOTE: _gap_fit 비활성화 — 현재 구현이 행을 move가 아닌 copy하여
+    # 원본 행이 남아 max 종료일이 늘어나는 버그 존재. Local Search로 대체.
+    # schedule_rows = _gap_fit(schedule_rows)
+
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 11.8. Local Search — Move: 납기 초과 작업을 더 이른 슬롯으로 이동
+    # ──────────────────────────────────────────────────────────────────────────
+    def _local_search_move(rows: List[Dict], max_iter: int = 30) -> List[Dict]:
+        """
+        납기 초과 주문의 작업 행을 더 이른 (날짜, 슬롯)으로 이동하여
+        tardiness 합을 줄이는 Move 연산.
+        개선 시에만 적용, 개선이 없으면 조기 종료.
+        """
+        def _tardiness(rows: List[Dict]) -> float:
+            return _calc_tardiness(rows)
+
+        def _rebuild_wm(rows: List[Dict]) -> Dict[str, Dict[str, int]]:
+            """(date_str, worker) → 점유 비트마스크 재구성."""
+            wm: Dict[str, Dict[str, int]] = {}
+            for row in rows:
+                d_str = row["시작일"][:10]
+                try:
+                    s_dt = datetime.strptime(row["시작일"], "%Y-%m-%d %H:%M:%S")
+                    e_dt = datetime.strptime(row["종료일"], "%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    continue
+                s_slot = (s_dt.hour - 9) * 60 + s_dt.minute
+                e_slot = (e_dt.hour - 9) * 60 + e_dt.minute
+                duration = max(0, e_slot - s_slot)
+                if duration <= 0:
+                    continue
+                for w_str in row["배정직원"].split(";"):
+                    w_id = w_str.split("(")[0].strip().lower()
+                    wm.setdefault(d_str, {})
+                    wm[d_str][w_id] = wm[d_str].get(w_id, _LUNCH_MASK) | _make_run_mask(s_slot, duration)
+            return wm
+
+        current_tardiness = _tardiness(rows)
+        if current_tardiness == 0:
+            return rows   # 이미 전부 납기 내 완료
+
+        improved = True
+        iteration = 0
+        while improved and iteration < max_iter:
+            improved = False
+            iteration += 1
+
+            # 납기 초과 주문 행: 종료일이 가장 늦은 것 우선
+            late_rows_idx = [
+                i for i, r in enumerate(rows)
+                if r.get("납기상태") == "납기초과"
+            ]
+            if not late_rows_idx:
+                break
+
+            # 종료일 내림차순 정렬 (가장 늦은 작업 우선 시도)
+            late_rows_idx.sort(key=lambda i: rows[i]["종료일"], reverse=True)
+
+            wm = _rebuild_wm(rows)
+            all_dates = sorted(set(r["시작일"][:10] for r in rows))
+
+            for idx in late_rows_idx[:10]:   # 최대 10행씩 시도
+                row = rows[idx]
+                dur_m = row["작업시간_분"]
+                if dur_m <= 0:
+                    continue
+
+                try:
+                    cur_start_dt = datetime.strptime(row["시작일"], "%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    continue
+
+                workers_in_row = [
+                    w_str.split("(")[0].strip().lower()
+                    for w_str in row["배정직원"].split(";")
+                    if w_str.strip()
+                ]
+                if not workers_in_row:
+                    continue
+
+                due_date_str = row["납기일"]
+                try:
+                    due_d = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+                except Exception:
+                    continue
+
+                # 현재 날짜보다 이전 날짜들을 탐색
+                moved = False
+                for d_str in all_dates:
+                    if d_str >= cur_start_dt.strftime("%Y-%m-%d"):
+                        continue   # 같은 날이나 이후는 스킵
+                    try:
+                        day_date = datetime.strptime(d_str, "%Y-%m-%d").date()
+                    except Exception:
+                        continue
+
+                    # 모든 배정 작업자의 free mask 교집합
+                    combined_occ = 0
+                    for w_id in workers_in_row:
+                        combined_occ |= wm.get(d_str, {}).get(w_id, _LUNCH_MASK)
+                    free_m = WORK_MASK & ~combined_occ
+
+                    run_start = _find_contiguous_start(free_m, dur_m)
+                    if run_start < 0:
+                        continue   # 이 날에는 연속 블록 없음
+
+                    base_dt   = datetime.combine(day_date, dt_time(9, 0))
+                    new_start = base_dt + timedelta(minutes=run_start)
+                    new_end   = new_start + timedelta(minutes=dur_m)
+                    new_status = (
+                        "납기내완료" if new_end.date() <= due_d else "납기초과"
+                    )
+
+                    # 임시 적용 후 tardiness 재계산
+                    old_start = rows[idx]["시작일"]
+                    old_end   = rows[idx]["종료일"]
+                    old_status = rows[idx]["납기상태"]
+                    rows[idx]["시작일"]   = new_start.strftime("%Y-%m-%d %H:%M:%S")
+                    rows[idx]["종료일"]   = new_end.strftime("%Y-%m-%d %H:%M:%S")
+                    rows[idx]["납기상태"] = new_status
+
+                    new_tardiness = _tardiness(rows)
+                    if new_tardiness < current_tardiness:
+                        # 개선 → 수용
+                        current_tardiness = new_tardiness
+                        improved = True
+                        moved = True
+                        logger.debug(
+                            f"LS-Move 수용: {row['주문번호']}/{row['작업ID']} "
+                            f"{old_start[:10]} → {d_str}  tardiness {new_tardiness:.1f}"
+                        )
+                        break   # 이 행에 대해 첫 개선 발견 시 다음 행으로
+                    else:
+                        # 롤백
+                        rows[idx]["시작일"]   = old_start
+                        rows[idx]["종료일"]   = old_end
+                        rows[idx]["납기상태"] = old_status
+
+                if moved:
+                    break   # 1개라도 개선됐으면 마스크 재구성 후 다음 iter
+
+        logger.info(
+            f"Local Search Move 완료: {iteration}회 반복, "
+            f"최종 tardiness={current_tardiness:.1f}일"
+        )
+        return rows
+
+    schedule_rows = _local_search_move(schedule_rows, max_iter=30)
 
     # ──────────────────────────────────────────────────────────────────────────
     # 11.6. 지연 원인 후처리 (Post-processing)

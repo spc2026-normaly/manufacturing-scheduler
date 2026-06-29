@@ -26,7 +26,7 @@ from app.services.schedule_pipeline.gpt_scheduler import (
     get_daily_work_minutes,
     get_work_days_from_rag,
 )
-from app.services.schedule_pipeline.conflict_resolver import resolve_conflicts
+from app.services.schedule_pipeline.conflict_resolver import resolve_conflicts, _calc_tardiness
 
 try:
     from app.utils.logger import logger
@@ -94,6 +94,7 @@ def _compute_kpi(schedule_df: pd.DataFrame, summary_df: pd.DataFrame) -> dict:
 def generate_and_upload_schedule(
     db: Session,
     mode: str = "forward",
+    multistart_n: int = 3,   # Multi-start Greedy 반복 횟수 (1 = 기존 동작)
 ) -> dict:
     """
     전체 일정 수립 파이프라인을 실행합니다.
@@ -139,24 +140,53 @@ def generate_and_upload_schedule(
                 daily_work_minutes=daily_work_minutes,
                 start_date=today,
                 work_days=work_days,
-                time_limit_seconds=60,
+                time_limit_seconds=120,   # 60 → 120초로 증가
             )
+            if schedule_df.empty:
+                logger.warning("CP-SAT 해 없음(INFEASIBLE/TIMEOUT) — backward 시뮬레이션으로 폴백")
+                mode = "backward"
         except Exception as e:
-            logger.error(f"CP-SAT 실패 ({e}) — forward 시뮬레이션으로 폴백")
-            mode = "forward"
+            logger.error(f"CP-SAT 실패 ({e}) — backward 시뮬레이션으로 폴백")
+            mode = "backward"
 
     if schedule_df.empty and mode in ("forward", "backward"):
-        logger.info(f"⚡ {mode} 시뮬레이션 모드로 일정 수립 중...")
-        schedule_df = resolve_conflicts(
-            db=db,
-            orders_df=orders_df,
-            equip_df=equip_df,
-            tasks_df=tasks_df,
-            qualified_workers=qualified_workers,
-            daily_work_minutes=daily_work_minutes,
-            start_date=today,
-            work_days=work_days,
-            mode=mode,
+        # ── Multi-start Greedy ────────────────────────────────────────────────
+        # N회 반복 중 tardiness 합이 최소인 결과를 채택.
+        # trial=0 은 노이즈 없는 기존 ATC 순서 (재현성 보장).
+        n_trials = max(1, multistart_n)
+        logger.info(f"⚡ {mode} 시뮬레이션 모드 — Multi-start Greedy {n_trials}회 시작...")
+        best_df: pd.DataFrame = pd.DataFrame()
+        best_tardiness = float("inf")
+        for trial in range(n_trials):
+            noise = 0.0 if trial == 0 else 0.10   # trial 0 = 결정적, 이후 ±10% 노이즈
+            logger.info(f"  [trial {trial + 1}/{n_trials}] atc_noise={noise:.0%}")
+            candidate_df = resolve_conflicts(
+                db=db,
+                orders_df=orders_df,
+                equip_df=equip_df,
+                tasks_df=tasks_df,
+                qualified_workers=qualified_workers,
+                daily_work_minutes=daily_work_minutes,
+                start_date=today,
+                work_days=work_days,
+                mode=mode,
+                atc_noise=noise,
+            )
+            if candidate_df.empty:
+                continue
+            cand_rows = candidate_df.to_dict(orient="records")
+            tardiness = _calc_tardiness(cand_rows)
+            logger.info(f"  [trial {trial + 1}] tardiness={tardiness:.1f}일")
+            if tardiness < best_tardiness:
+                best_tardiness = tardiness
+                best_df = candidate_df
+                if tardiness == 0:
+                    break   # 완벽한 해 발견 → 조기 종료
+
+        schedule_df = best_df
+        logger.info(
+            f"Multi-start Greedy 완료 — 최선 tardiness={best_tardiness:.1f}일 "
+            f"({n_trials}회 시도)"
         )
 
     if schedule_df.empty:

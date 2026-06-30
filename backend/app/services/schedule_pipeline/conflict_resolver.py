@@ -44,6 +44,29 @@ _ALL_MASK   = (1 << TOTAL_SLOTS) - 1
 _LUNCH_MASK = sum(1 << m for m in range(LUNCH_START, LUNCH_END))
 WORK_MASK   = _ALL_MASK & ~_LUNCH_MASK   # 점심 제외 가용 슬롯 비트마스크
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 스케줄링 스케일 상수
+#
+# 주문 수량을 그대로 작업시간으로 계산하면 지나치게 큰 값이 되어
+# 우선순위 계산 및 시뮬레이션 비용이 증가한다.
+#
+# 각 스케일은 서로 다른 목적을 가지므로 독립적으로 조정 가능하다.
+#
+# ATC_SCALE
+#   - ATC(Apparent Tardiness Cost) 우선순위 계산용
+#   - 주문의 상대적인 처리시간 추정에 사용
+#
+# PROCESS_SCALE
+#   - 실제 스케줄링 시 작업시간(remaining_mins) 계산용
+#   - 공정 소요시간 및 일정 길이에 직접 영향
+#
+# LOAD_SCALE
+#   - 작업자 부하(worker score) 계산용
+#   - 작업자 균등 배분에 사용
+# ══════════════════════════════════════════════════════════════════════════════
+ATC_SCALE = 1500
+LOAD_SCALE = 1000
+PROCESS_SCALE = 1500
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 비트마스크 유틸리티
@@ -340,7 +363,7 @@ def resolve_conflicts(
     # 7. 총 예상 작업시간 계산 → EDD+SPT 우선순위 정렬
     # ──────────────────────────────────────────────────────────────────────────
     def _estimate_total_minutes(order: Dict) -> int:
-        mult = math.ceil(order["quantity"] / 1000)
+        mult = math.ceil(order["quantity"] / ATC_SCALE)
         return sum(
             t["base_time"] * mult
             for step_tasks in product_tasks.get(order["product_name"], {}).values()
@@ -500,7 +523,7 @@ def resolve_conflicts(
                 assigned = eligible_sorted[:num_to_assign]
                 task_assignments[t["task_id"]] = assigned
 
-                mult    = math.ceil(order["quantity"] / 1000)
+                mult    = math.ceil(order["quantity"] / LOAD_SCALE)
                 avg_dur = math.ceil(t["base_time"] * mult / len(assigned))
                 for w in assigned:
                     worker_total_load[w] = worker_total_load.get(w, 0) + avg_dur
@@ -510,7 +533,7 @@ def resolve_conflicts(
             step_completed = False
             actual_step_end = order_start_date   # ← 버그 수정: 항상 초기화
 
-            mult           = math.ceil(order["quantity"] / 1000)
+            mult           = math.ceil(order["quantity"] / PROCESS_SCALE)
             remaining_mins = {t["task_id"]: t["base_time"] * mult for t in tasks}
 
             while not step_completed:

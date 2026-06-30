@@ -1,22 +1,16 @@
 -- generated
 
 TRUNCATE TABLE schedule_assignments CASCADE;
-
 TRUNCATE TABLE documents CASCADE;
-
 TRUNCATE TABLE safety_training CASCADE;
-
 TRUNCATE TABLE required_equipments CASCADE;
-
 TRUNCATE TABLE equipments CASCADE;
-
 TRUNCATE TABLE schedules CASCADE;
-
 TRUNCATE TABLE task CASCADE;
-
 TRUNCATE TABLE orders CASCADE;
-
 TRUNCATE TABLE employees CASCADE;
+TRUNCATE TABLE equipment_maintenance CASCADE;
+TRUNCATE TABLE company_holidays CASCADE;
 
 
 

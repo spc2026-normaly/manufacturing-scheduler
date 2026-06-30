@@ -72,14 +72,23 @@ def _abs_slot_to_datetime(abs_slot: int, start_date: date) -> datetime:
 def _build_product_tasks(
     tasks_df: pd.DataFrame,
     equip_symbol_map: Dict[str, str],
+    unique_products: List[str],
 ) -> Dict[str, Dict[int, List[Dict]]]:
-    product_tasks: Dict[str, Dict[int, List[Dict]]] = {"DRAM": {}, "NAND": {}}
-    for p_type in ("DRAM", "NAND"):
-        filtered = tasks_df[
-            (tasks_df["적용제품군"].str.strip() == "전체") |
-            (tasks_df["적용제품군"].str.strip().str.upper() == p_type.upper())
-        ].copy()
+    product_tasks: Dict[str, Dict[int, List[Dict]]] = {}
+    for p_name in unique_products:
+        p_name_clean = str(p_name).strip()
+        def is_applicable(val: str, prod: str) -> bool:
+            v = str(val).strip().lower()
+            if v == "전체":
+                return True
+            products = [p.strip().lower() for p in v.split(";")]
+            return prod.lower() in products
+
+        mask = tasks_df["적용제품군"].apply(lambda v: is_applicable(v, p_name_clean))
+        filtered = tasks_df[mask].copy()
         filtered["step_int"] = filtered["작업단계"].astype(int)
+        
+        product_tasks[p_name_clean] = {}
         for step, group in filtered.groupby("step_int"):
             step_tasks: List[Dict] = []
             for _, row in group.iterrows():
@@ -95,7 +104,7 @@ def _build_product_tasks(
                     "required_equipments": req_equips,
                     "base_time":           int(row["작업시간_분"]),
                 })
-            product_tasks[p_type][step] = step_tasks
+            product_tasks[p_name_clean][step] = step_tasks
     return product_tasks
 
 
@@ -161,7 +170,8 @@ def schedule_with_cpsat(
     emp_names: Dict[str, str] = {r["emp_id"].lower().strip(): r["emp_name"] for r in emp_rows}
 
     # ── 작업 목록 / DAG ──────────────────────────────────────────────────────
-    product_tasks   = _build_product_tasks(tasks_df, equip_symbol_map)
+    unique_products = orders_df["제품명"].unique().tolist()
+    product_tasks   = _build_product_tasks(tasks_df, equip_symbol_map, unique_products)
     task_predecessors = _build_task_predecessors(tasks_df)
 
     # ── 지평선(horizon) 계산 ─────────────────────────────────────────────────
@@ -175,7 +185,7 @@ def schedule_with_cpsat(
         mult  = math.ceil(qty / 1000)
         max_total_mins += sum(
             t["base_time"] * mult
-            for st in product_tasks.get(ptype, {}).values()
+            for st in product_tasks.get(pname, {}).values()
             for t in st
         )
 
@@ -229,16 +239,16 @@ def schedule_with_cpsat(
 
     for order in orders_info:
         onum  = order["order_num"]
-        ptype = order["product_type"]
+        pname = order["product_name"]
         mult  = math.ceil(order["quantity"] / 1000)
         due_abs = order["due_abs"]
 
         prev_step_end_var = None
 
         for step in range(1, 13):
-            if step not in product_tasks.get(ptype, {}):
+            if step not in product_tasks.get(pname, {}):
                 continue
-            tasks = product_tasks[ptype][step]
+            tasks = product_tasks[pname][step]
             step_end_vars: List = []
 
             for t in tasks:

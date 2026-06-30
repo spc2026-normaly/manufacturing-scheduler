@@ -699,7 +699,7 @@ export default function ScheduleBuilderPage() {
       )}
 
       {/* 📊 생산 분석 대시보드 연동 */}
-      {phases !== "running" && (
+      {phases === "done" && (
         <AnalyticsPanel dateStr="2026-07-01" refreshTrigger={result} />
       )}
     </div>

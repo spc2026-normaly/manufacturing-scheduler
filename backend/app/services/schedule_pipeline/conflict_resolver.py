@@ -296,13 +296,21 @@ def resolve_conflicts(
     # ──────────────────────────────────────────────────────────────────────────
     # 6. 작업 목록 필터링 & 그룹화
     # ──────────────────────────────────────────────────────────────────────────
-    product_tasks: Dict[str, Dict[int, List[Dict]]] = {"DRAM": {}, "NAND": {}}
-    for p_type in ("DRAM", "NAND"):
-        filtered = tasks_df[
-            (tasks_df["적용제품군"].str.strip() == "전체") |
-            (tasks_df["적용제품군"].str.strip().str.upper() == p_type.upper())
-        ].copy()
+    product_tasks: Dict[str, Dict[int, List[Dict]]] = {}
+    unique_products = orders_df["제품명"].unique()
+    for p_name in unique_products:
+        p_name_clean = str(p_name).strip()
+        def is_applicable(val: str, prod: str) -> bool:
+            v = str(val).strip().lower()
+            if v == "전체":
+                return True
+            products = [p.strip().lower() for p in v.split(";")]
+            return prod.lower() in products
+
+        mask = tasks_df["적용제품군"].apply(lambda v: is_applicable(v, p_name_clean))
+        filtered = tasks_df[mask].copy()
         filtered["step_int"] = filtered["작업단계"].astype(int)
+        product_tasks[p_name_clean] = {}
         for step, group in filtered.groupby("step_int"):
             step_tasks: List[Dict] = []
             for _, row in group.iterrows():
@@ -326,7 +334,7 @@ def resolve_conflicts(
                     "required_equipments": req_equips,
                     "base_time":           int(row["작업시간_분"]),
                 })
-            product_tasks[p_type][step] = step_tasks
+            product_tasks[p_name_clean][step] = step_tasks
 
     # ──────────────────────────────────────────────────────────────────────────
     # 7. 총 예상 작업시간 계산 → EDD+SPT 우선순위 정렬
@@ -335,7 +343,7 @@ def resolve_conflicts(
         mult = math.ceil(order["quantity"] / 1000)
         return sum(
             t["base_time"] * mult
-            for step_tasks in product_tasks.get(order["product_type"], {}).values()
+            for step_tasks in product_tasks.get(order["product_name"], {}).values()
             for t in step_tasks
         )
 
@@ -440,10 +448,10 @@ def resolve_conflicts(
 
     for step in range(1, 13):
         for order in orders:
-            p_type = order["product_type"]
-            if step not in product_tasks[p_type]:
+            p_name = order["product_name"]
+            if step not in product_tasks.get(p_name, {}):
                 continue
-            tasks = product_tasks[p_type][step]
+            tasks = product_tasks[p_name][step]
             if not tasks:
                 continue
 

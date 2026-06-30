@@ -20,6 +20,9 @@ DROP TABLE IF EXISTS schedules CASCADE;
 DROP TABLE IF EXISTS task CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
 DROP TABLE IF EXISTS employees CASCADE;
+DROP TABLE IF EXISTS equipment_maintenance CASCADE;
+DROP TABLE IF EXISTS company_holidays CASCADE;
+
 
 -- 2. Create tables
 
@@ -201,3 +204,21 @@ COMMENT ON COLUMN equipments.check_cycle IS '점검 주기 (일단위)';
 COMMENT ON COLUMN task.task_time IS '작업 소요 시간 (분단위)';
 COMMENT ON COLUMN equipments.durability IS '내구도 (사용 횟수)';
 COMMENT ON COLUMN equipments.rest_duration IS '장비 휴식 시간 (분단위)';
+
+-- company_holidays table
+CREATE TABLE company_holidays (
+    holiday_date DATE NOT NULL,
+    holiday_name VARCHAR(255) NOT NULL,
+    CONSTRAINT PK_COMPANY_HOLIDAYS PRIMARY KEY (holiday_date)
+);
+
+-- equipment_maintenance table
+CREATE TABLE equipment_maintenance (
+    id SERIAL,
+    equipment_id VARCHAR(255) NOT NULL,
+    pm_date DATE NOT NULL,
+    start_slot INTEGER NOT NULL,
+    end_slot INTEGER NOT NULL,
+    CONSTRAINT PK_EQUIPMENT_MAINTENANCE PRIMARY KEY (id),
+    CONSTRAINT FK_equipments_TO_equipment_maintenance FOREIGN KEY (equipment_id) REFERENCES equipments (eq_id) ON DELETE CASCADE
+);

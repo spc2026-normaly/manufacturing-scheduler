@@ -320,11 +320,12 @@ def get_schedules_analytics(
 
     # ── 1. 작업자 이용률 ─────────────────────────────────────────────────────
     worker_sql = """
-        SELECT sa.employee_id, SUM(s.duration_minutes) as worked_mins
+        SELECT sa.user_id AS employee_id,
+               SUM(EXTRACT(EPOCH FROM (s.end_date - s.start_date))/60) as worked_mins
         FROM schedule_assignments sa
-        JOIN schedules s ON sa.schedule_id = s.id
+        JOIN schedules s ON sa.id = s.id AND sa.task_id = s.task_id AND sa.order_id = s.order_id
         WHERE s.start_date >= :start_dt AND s.end_date <= :end_dt
-        GROUP BY sa.employee_id
+        GROUP BY sa.user_id
     """
     worker_rows = db.execute(text(worker_sql), {"start_dt": start_dt, "end_dt": end_dt}).mappings().all()
     emp_name_rows = db.execute(text("SELECT emp_id, emp_name FROM employees")).mappings().all()
@@ -345,13 +346,14 @@ def get_schedules_analytics(
 
     # ── 2. 장비 이용률 ─────────────────────────────────────────────────────
     equip_sql = """
-        SELECT s.equipment_id,
-               SUM(s.duration_minutes) as used_mins,
-               COUNT(DISTINCT DATE(s.start_date)) as used_days
+        SELECT e.eq_name AS equipment_id,
+               SUM(EXTRACT(EPOCH FROM (s.end_date - s.start_date))/60) as used_mins,
+               COUNT(DISTINCT CAST(s.start_date AS date)) as used_days
         FROM schedules s
+        JOIN required_equipments re ON re.task_id = s.task_id
+        JOIN equipments e ON e.eq_id = re.eq_id
         WHERE s.start_date >= :start_dt AND s.end_date <= :end_dt
-          AND s.equipment_id IS NOT NULL AND s.equipment_id != ''
-        GROUP BY s.equipment_id
+        GROUP BY e.eq_name
     """
     equip_rows = db.execute(text(equip_sql), {"start_dt": start_dt, "end_dt": end_dt}).mappings().all()
     equipment_utilization = []
@@ -369,13 +371,14 @@ def get_schedules_analytics(
 
     # ── 3. 공정별 평균 Idle / 대기시간 (병목 Top 5) ───────────────────────
     task_sql = """
-        SELECT s.task_name, s.factory,
-               AVG(s.duration_minutes) as avg_duration,
+        SELECT t.task_name, s.factory,
+               AVG(EXTRACT(EPOCH FROM (s.end_date - s.start_date))/60) as avg_duration,
                COUNT(*) as task_count,
-               SUM(s.duration_minutes) as total_mins
+               SUM(EXTRACT(EPOCH FROM (s.end_date - s.start_date))/60) as total_mins
         FROM schedules s
+        JOIN task t ON t.task_id = s.task_id
         WHERE s.start_date >= :start_dt AND s.end_date <= :end_dt
-        GROUP BY s.task_name, s.factory
+        GROUP BY t.task_name, s.factory
         ORDER BY total_mins DESC
         LIMIT 10
     """
@@ -394,25 +397,27 @@ def get_schedules_analytics(
     # ── 4. 납기 위험 주문 (잔여 납기 ≤ 5일, 미완료) ────────────────────────
     today = date.today()
     risk_sql = """
-        SELECT s.order_num, MAX(s.due_date) as due_date,
+        SELECT o.order_num, MAX(o.due_date) as due_date,
                MAX(s.end_date) as last_end,
-               MAX(s.completion_status) as status
+               CASE WHEN MAX(o.order_status) = 'COMPLETED' THEN '납기내완료' ELSE '미완료' END as status
         FROM schedules s
-        WHERE s.due_date >= :today
-        GROUP BY s.order_num
-        HAVING MAX(s.completion_status) != '납기내완료'
-           OR MAX(s.completion_status) IS NULL
+        JOIN orders o ON o.order_id = s.order_id
+        WHERE o.due_date >= :today
+        GROUP BY o.order_num
+        HAVING MAX(o.order_status) != 'COMPLETED'
+           OR MAX(o.order_status) IS NULL
     """
     try:
         risk_rows = db.execute(text(risk_sql), {"today": today}).mappings().all()
     except Exception:
         # completion_status 컬럼 없는 경우 납기 컬럼만으로 처리
         risk_sql2 = """
-            SELECT s.order_num, MAX(s.due_date) as due_date,
+            SELECT o.order_num, MAX(o.due_date) as due_date,
                    MAX(s.end_date) as last_end
             FROM schedules s
-            WHERE s.due_date >= :today
-            GROUP BY s.order_num
+            JOIN orders o ON o.order_id = s.order_id
+            WHERE o.due_date >= :today
+            GROUP BY o.order_num
         """
         risk_rows = db.execute(text(risk_sql2), {"today": today}).mappings().all()
 
@@ -436,12 +441,13 @@ def get_schedules_analytics(
     ontime_sql = """
         SELECT
           COUNT(DISTINCT order_num) as total_orders,
-          SUM(CASE WHEN MAX(end_date) <= MAX(due_date) THEN 1 ELSE 0 END) as ontime_count
+          SUM(CASE WHEN max_end_date <= due_date THEN 1 ELSE 0 END) as ontime_count
         FROM (
-          SELECT order_num, MAX(end_date) as end_date, MAX(due_date) as due_date
-          FROM schedules
-          WHERE start_date >= :start_dt AND end_date <= :end_dt
-          GROUP BY order_num
+          SELECT o.order_num, MAX(s.end_date) as max_end_date, MAX(o.due_date) as due_date
+          FROM schedules s
+          JOIN orders o ON o.order_id = s.order_id
+          WHERE s.start_date >= :start_dt AND s.end_date <= :end_dt
+          GROUP BY o.order_num
         ) sub
     """
     try:
@@ -455,8 +461,8 @@ def get_schedules_analytics(
 
     # ── 6. Makespan ────────────────────────────────────────────────────────
     span_sql = """
-        SELECT MIN(DATE(start_date)) as first_start,
-               MAX(DATE(end_date))   as last_end
+        SELECT MIN(CAST(start_date AS date)) as first_start,
+               MAX(CAST(end_date AS date))   as last_end
         FROM schedules
         WHERE start_date >= :start_dt AND end_date <= :end_dt
     """

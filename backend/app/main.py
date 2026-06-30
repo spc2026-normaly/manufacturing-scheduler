@@ -30,6 +30,36 @@ async def lifespan(app: FastAPI):
         )
         conn.execute(
             text(
+                """
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public' AND table_name = 'task' AND column_name = 'task_type'
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public' AND table_name = 'task' AND column_name = 'product_category'
+                    ) THEN
+                        ALTER TABLE task RENAME COLUMN task_type TO product_category;
+                    END IF;
+
+                    IF EXISTS (
+                        SELECT 1
+                        FROM information_schema.tables
+                        WHERE table_schema = 'public' AND table_name = 'task'
+                    ) THEN
+                        ALTER TABLE task ADD COLUMN IF NOT EXISTS product_category VARCHAR(255) NOT NULL DEFAULT '전체';
+                    END IF;
+                END
+                $$;
+                """
+            )
+        )
+        conn.execute(
+            text(
                 "ALTER TABLE IF EXISTS equipments ADD COLUMN IF NOT EXISTS durability INTEGER NOT NULL DEFAULT 0"
             )
         )

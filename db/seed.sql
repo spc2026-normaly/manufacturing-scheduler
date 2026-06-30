@@ -89,7 +89,7 @@ INSERT INTO orders (order_id,order_num,product_name,order_count,due_date,order_s
 ('ord_023','PO023','NAND-512G',1400,'2027-01-20','COMPLETED'),
 ('ord_024','PO024','DRAM-64G',900,'2027-01-31','COMPLETED');
 
-INSERT INTO task (task_id,task_level,task_name,task_type,task_time) VALUES
+INSERT INTO task (task_id,task_level,task_name,product_category,task_time) VALUES
 ('tsk_001','중','웨이퍼 입고검사','공정',360),
 ('tsk_002','중','초기 외관검사','테스트',270),
 ('tsk_003','중','웨이퍼 세정','공정',540),

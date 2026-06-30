@@ -176,7 +176,7 @@ def get_calendar_schedules(
         s.id,
         s.factory,
         t.task_name,
-        t.task_type,
+        t.product_category AS task_type,
         o.product_name,
         o.order_num,
         s.start_date,
@@ -197,7 +197,7 @@ def get_calendar_schedules(
       AND s.end_date >= :start_dt
       AND (:factory_raw IS NULL OR s.factory = :factory_raw)
       AND (:order_num IS NULL OR o.order_num = :order_num)
-    GROUP BY s.id, s.factory, t.task_name, t.task_type, o.product_name, o.order_num, s.start_date, s.end_date
+    GROUP BY s.id, s.factory, t.task_name, t.product_category, o.product_name, o.order_num, s.start_date, s.end_date
     ORDER BY s.start_date ASC, s.id ASC
     """
 

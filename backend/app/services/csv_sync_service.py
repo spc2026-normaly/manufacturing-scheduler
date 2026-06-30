@@ -228,7 +228,7 @@ def _sync_tasks_and_required_equipments(
     key_map = {
         "task_id": _match_key(first, ["작업uuid", "작업id", "task_id"]),
         "task_name": _match_key(first, ["작업명", "task_name"]),
-        "task_type": _match_key(first, ["작업구분", "task_type"]),
+        "product_category": _match_key(first, ["적용제품군", "product_category", "task_type"]),
         "task_level": _match_key(first, ["작업단계", "task_level"]),
         "task_time": _match_key(first, ["작업시간", "작업 시간", "task_time"]),
         "task_factory": _match_key(first, ["사용공장동", "task_factory", "공장동"]),
@@ -264,10 +264,10 @@ def _sync_tasks_and_required_equipments(
                     else "1"
                 ),
                 "task_name": task_name,
-                "task_type": (
-                    row.get(key_map["task_type"], "공정").strip()
-                    if key_map["task_type"]
-                    else "공정"
+                "product_category": (
+                    row.get(key_map["product_category"], "전체").strip()
+                    if key_map["product_category"]
+                    else "전체"
                 ),
                 "task_time": (
                     _parse_int(row.get(key_map["task_time"]), 0)
@@ -292,9 +292,9 @@ def _sync_tasks_and_required_equipments(
         db.execute(
             text("""
                 INSERT INTO task
-                (task_id, task_level, task_name, task_type, task_time, task_factory)
+                (task_id, task_level, task_name, product_category, task_time, task_factory)
                 VALUES
-                (:task_id, :task_level, :task_name, :task_type, :task_time, :task_factory)
+                (:task_id, :task_level, :task_name, :product_category, :task_time, :task_factory)
                 """),
             task_payloads,
         )

@@ -64,9 +64,9 @@ WORK_MASK   = _ALL_MASK & ~_LUNCH_MASK   # 점심 제외 가용 슬롯 비트마
 #   - 작업자 부하(worker score) 계산용
 #   - 작업자 균등 배분에 사용
 # ══════════════════════════════════════════════════════════════════════════════
-ATC_SCALE = 1500
+ATC_SCALE = 1000
 LOAD_SCALE = 1000
-PROCESS_SCALE = 1500
+PROCESS_SCALE = 1000
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 비트마스크 유틸리티
@@ -729,9 +729,9 @@ def resolve_conflicts(
                 dur_m = row["작업시간_분"]
                 new_start = cursor
                 new_end   = cursor + timedelta(minutes=dur_m)
-                # 점심(12:00–13:00) 건너뜀
-                lunch_s = base_dt.replace(hour=12, minute=0, second=0)
-                lunch_e = base_dt.replace(hour=13, minute=0, second=0)
+                # 점심(12:00–13:00) 건너뜀 (현재 cursor 날짜 기준으로 동적 생성)
+                lunch_s = cursor.replace(hour=12, minute=0, second=0, microsecond=0)
+                lunch_e = cursor.replace(hour=13, minute=0, second=0, microsecond=0)
                 if new_start < lunch_e and new_end > lunch_s:
                     if new_start < lunch_s:
                         overflow = (new_end - lunch_s).seconds // 60

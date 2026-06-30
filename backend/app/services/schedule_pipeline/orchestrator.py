@@ -27,7 +27,7 @@ from app.services.schedule_pipeline.gpt_scheduler import (
     get_work_days_from_rag,
 )
 from app.services.schedule_pipeline.conflict_resolver import resolve_conflicts, _calc_tardiness
-
+from app.services.schedule_pipeline.holiday_calendar import count_workdays_between
 try:
     from app.utils.logger import logger
 except ImportError:
@@ -76,12 +76,12 @@ def _compute_kpi(schedule_df: pd.DataFrame, summary_df: pd.DataFrame) -> dict:
         try:
             min_date = pd.to_datetime(schedule_df["시작일"]).dt.date.min()
             max_date = pd.to_datetime(schedule_df["종료일"]).dt.date.max()
-            span_days = max(1, (max_date - min_date).days + 1)
+            working_days = count_workdays_between(min_date, max_date, work_days_set={0, 1, 2, 3, 4})
         except Exception:
-            span_days = 1
+            working_days = 1
     else:
-        span_days = 1
-    total_available = unique_workers * span_days * 480
+        working_days = 1
+    total_available = unique_workers * working_days * 480
     utilization = round(total_allocated / max(total_available, 1) * 100, 1)
 
     return {

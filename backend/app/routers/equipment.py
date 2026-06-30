@@ -8,6 +8,8 @@ from app.core.database import get_db
 from app.models.equipment import Equipment
 from app.routers.auth import Permission, PermissionChecker
 from app.schemas.scheduler import EquipmentCreate, EquipmentResponse
+from app.core.config import settings
+from app.services.r2_service import build_r2_key, guess_content_type, upload_bytes_to_r2
 
 router = APIRouter(prefix="/api/equipments", tags=["Equipment"])
 
@@ -104,6 +106,16 @@ def upload_equipment_csv(
     
     try:
         file_content = file.file.read()
+        if not file_content:
+            raise ValueError("빈 파일은 업로드할 수 없습니다.")
+
+        r2_key = build_r2_key(file.filename or "equipment.csv", settings.R2_SCHEDULE_INPUT_PREFIX)
+        upload_bytes_to_r2(
+            file_content,
+            r2_key,
+            content_type=guess_content_type(file.filename or "equipment.csv") or "text/csv",
+        )
+
         rows = _read_rows(file_content)
         result = _sync_equipments(db, rows)
         db.commit()
@@ -111,6 +123,7 @@ def upload_equipment_csv(
             "status": "success",
             "message": f"장비 정보가 동기화되었습니다. ({result['rows']}개)",
             "filename": file.filename,
+            "r2_key": r2_key,
             "rows_processed": result['rows']
         }
     except ValueError as e:

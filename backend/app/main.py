@@ -28,6 +28,16 @@ async def lifespan(app: FastAPI):
                 "ALTER TABLE IF EXISTS task ADD COLUMN IF NOT EXISTS task_factory VARCHAR(255) NULL"
             )
         )
+        conn.execute(
+            text(
+                "ALTER TABLE IF EXISTS equipments ADD COLUMN IF NOT EXISTS durability INTEGER NOT NULL DEFAULT 0"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE IF EXISTS equipments ADD COLUMN IF NOT EXISTS rest_duration INTEGER NOT NULL DEFAULT 0"
+            )
+        )
     # SQLAlchemy 모델 기반 테이블 자동 생성
     Base.metadata.create_all(bind=engine)
     yield

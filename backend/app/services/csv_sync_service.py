@@ -113,14 +113,14 @@ def _sync_equipments(db: Session, rows: list[dict[str, str]]) -> dict:
     key_map = {
         "eq_id": _match_key(first, ["장비uuid", "eq_id", "장비id"]),
         "eq_name": _match_key(first, ["장비명", "eq_name"]),
-        "eq_count": _match_key(first, ["장비전체수량", "장비수량", "eq_count"]),
+        "eq_count": _match_key(first, ["장비전체수량", "장비수량", "장비전체", "eq_count"]),
         "available_eq_count": _match_key(
-            first, ["가용장비수량", "사용가능수량", "available_eq_count"]
+            first, ["가용장비수량", "사용가능수량", "가용장비", "available_eq_count"]
         ),
         "check_cycle": _match_key(first, ["점검주기", "check_cycle"]),
         "eq_status": _match_key(first, ["상태", "eq_status"]),
-        "check_date": _match_key(first, ["다음점검일", "check_date"]),
-        "recent_check_date": _match_key(first, ["최근점검일", "recent_check_date"]),
+        "check_date": _match_key(first, ["다음점검일", "다음점검", "check_date"]),
+        "recent_check_date": _match_key(first, ["최근점검일", "최근점검", "recent_check_date"]),
         "durability": _match_key(first, ["내구도", "durability"]),
         "rest_duration": _match_key(first, ["장비휴식시간", "장비 휴식 시간", "rest_duration", "rest_time"]),
     }

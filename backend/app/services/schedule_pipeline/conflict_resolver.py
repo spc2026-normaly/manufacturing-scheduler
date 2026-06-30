@@ -44,6 +44,29 @@ _ALL_MASK   = (1 << TOTAL_SLOTS) - 1
 _LUNCH_MASK = sum(1 << m for m in range(LUNCH_START, LUNCH_END))
 WORK_MASK   = _ALL_MASK & ~_LUNCH_MASK   # 점심 제외 가용 슬롯 비트마스크
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 스케줄링 스케일 상수
+#
+# 주문 수량을 그대로 작업시간으로 계산하면 지나치게 큰 값이 되어
+# 우선순위 계산 및 시뮬레이션 비용이 증가한다.
+#
+# 각 스케일은 서로 다른 목적을 가지므로 독립적으로 조정 가능하다.
+#
+# ATC_SCALE
+#   - ATC(Apparent Tardiness Cost) 우선순위 계산용
+#   - 주문의 상대적인 처리시간 추정에 사용
+#
+# PROCESS_SCALE
+#   - 실제 스케줄링 시 작업시간(remaining_mins) 계산용
+#   - 공정 소요시간 및 일정 길이에 직접 영향
+#
+# LOAD_SCALE
+#   - 작업자 부하(worker score) 계산용
+#   - 작업자 균등 배분에 사용
+# ══════════════════════════════════════════════════════════════════════════════
+ATC_SCALE = 1500
+LOAD_SCALE = 1000
+PROCESS_SCALE = 1500
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 비트마스크 유틸리티
@@ -275,34 +298,48 @@ def resolve_conflicts(
         quantity     = int(row["수량"])
         due_date     = datetime.strptime(str(row["납기일"]).strip(), "%Y-%m-%d").date()
 
-        # 제품 타입: 명시 컬럼 우선 → 이름 포함 체크 → 경고
-        product_type = str(row.get("제품군", "")).strip().upper()
-        if product_type not in ("DRAM", "NAND"):
-            product_type = "DRAM" if "DRAM" in product_name.upper() else "NAND"
-            logger.warning(
-                f"주문 {order_num}: '제품군' 컬럼 없음 — "
-                f"제품명 기반 분류 결과 '{product_type}'"
-            )
-
+        # product_type = 주문의 제품명 그대로 사용 (공정 목록 조회 키)
         orders.append({
             "order_num":    order_num,
             "product_name": product_name,
             "quantity":     quantity,
             "due_date":     due_date,
-            "product_type": product_type,
+            "product_type": product_name,   # 실제 제품명을 키로 사용
             "current_date": start_date,
         })
 
     # ──────────────────────────────────────────────────────────────────────────
     # 6. 작업 목록 필터링 & 그룹화
+    #    적용제품군 컬럼의 세미콜론 구분 목록에서 제품명 완전 일치로 필터링
     # ──────────────────────────────────────────────────────────────────────────
-    product_tasks: Dict[str, Dict[int, List[Dict]]] = {"DRAM": {}, "NAND": {}}
-    for p_type in ("DRAM", "NAND"):
+
+    # 적용제품군 셀 → 제품명 집합으로 파싱 (캐시)
+    def _parse_product_set(cell_value: str) -> set:
+        """'DDR5 DRAM;LPDDR5 DRAM;...' → {'DDR5 DRAM', 'LPDDR5 DRAM', ...}"""
+        cell = str(cell_value).strip()
+        if not cell or cell.lower() in ("nan", ""):
+            return set()
+        return {p.strip() for p in re.split(r"[;,]+", cell) if p.strip()}
+
+    # tasks_df에 파싱된 집합 컬럼 추가 (한 번만 계산)
+    tasks_df = tasks_df.copy()
+    tasks_df["_product_set"] = tasks_df["적용제품군"].apply(_parse_product_set)
+
+    # 주문에 등장하는 고유 제품명별로 공정 목록 구성
+    unique_product_names = {o["product_name"] for o in orders}
+    product_tasks: Dict[str, Dict[int, List[Dict]]] = {}
+
+    for product_name in unique_product_names:
+        # 완전 일치: 적용제품군 집합에 해당 제품명이 포함된 작업만 선택
         filtered = tasks_df[
-            (tasks_df["적용제품군"].str.strip() == "전체") |
-            (tasks_df["적용제품군"].str.strip().str.upper() == p_type.upper())
+            tasks_df["_product_set"].apply(lambda s: product_name in s)
         ].copy()
+
+        if filtered.empty:
+            logger.warning(f"제품 '{product_name}'에 해당하는 공정이 없습니다. 공정목록의 적용제품군을 확인하세요.")
+
         filtered["step_int"] = filtered["작업단계"].astype(int)
+        step_map: Dict[int, List[Dict]] = {}
         for step, group in filtered.groupby("step_int"):
             step_tasks: List[Dict] = []
             for _, row in group.iterrows():
@@ -326,13 +363,16 @@ def resolve_conflicts(
                     "required_equipments": req_equips,
                     "base_time":           int(row["작업시간_분"]),
                 })
-            product_tasks[p_type][step] = step_tasks
+            step_map[step] = step_tasks
+        product_tasks[product_name] = step_map
+        logger.info(f"제품 '{product_name}': {len(filtered)}개 공정, {len(step_map)}개 단계 로드")
+
 
     # ──────────────────────────────────────────────────────────────────────────
     # 7. 총 예상 작업시간 계산 → EDD+SPT 우선순위 정렬
     # ──────────────────────────────────────────────────────────────────────────
     def _estimate_total_minutes(order: Dict) -> int:
-        mult = math.ceil(order["quantity"] / 1000)
+        mult = math.ceil(order["quantity"] / ATC_SCALE)  
         return sum(
             t["base_time"] * mult
             for step_tasks in product_tasks.get(order["product_type"], {}).values()
@@ -492,7 +532,7 @@ def resolve_conflicts(
                 assigned = eligible_sorted[:num_to_assign]
                 task_assignments[t["task_id"]] = assigned
 
-                mult    = math.ceil(order["quantity"] / 1000)
+                mult    = math.ceil(order["quantity"] / LOAD_SCALE)
                 avg_dur = math.ceil(t["base_time"] * mult / len(assigned))
                 for w in assigned:
                     worker_total_load[w] = worker_total_load.get(w, 0) + avg_dur
@@ -502,7 +542,7 @@ def resolve_conflicts(
             step_completed = False
             actual_step_end = order_start_date   # ← 버그 수정: 항상 초기화
 
-            mult           = math.ceil(order["quantity"] / 1000)
+            mult           = math.ceil(order["quantity"] / PROCESS_SCALE)
             remaining_mins = {t["task_id"]: t["base_time"] * mult for t in tasks}
 
             while not step_completed:

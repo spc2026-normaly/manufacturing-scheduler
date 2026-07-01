@@ -89,15 +89,32 @@ def _get_or_create_session(
             if not session:
                 raise
     else:
-        # 마지막 활동 시간 갱신
-        session.last_activity = datetime.utcnow()
-        # 원래 익명 세션이었는데 로그인한 사용자 ID가 전달되면 업데이트
-        if emp_id and not session.employee_id:
-            session.employee_id = emp_id
-        try:
-            db.commit()
-        except Exception:
-            db.rollback()
+        if session.employee_id and session.employee_id != emp_id:
+            # 소유권 불일치: 강제로 새로운 세션 발급
+            session_id = str(uuid.uuid4())
+            session = ChatSession(
+                session_id=session_id,
+                employee_id=emp_id,
+                title=title,
+                created_at=datetime.utcnow(),
+                last_activity=datetime.utcnow()
+            )
+            db.add(session)
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+                raise
+        else:
+            # 마지막 활동 시간 갱신
+            session.last_activity = datetime.utcnow()
+            # 원래 익명 세션이었는데 로그인한 사용자 ID가 전달되면 업데이트
+            if emp_id and not session.employee_id:
+                session.employee_id = emp_id
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
             
     return session_id
 
@@ -374,6 +391,14 @@ async def get_chatbot_history(
     current_emp: Optional[Employee] = Depends(get_optional_employee),
 ):
     """특정 세션의 대화 이력을 시간 순서대로 조회합니다."""
+    session = db.query(ChatSession).filter(ChatSession.session_id == session_id).first()
+    if session and session.employee_id:
+        if not current_emp or session.employee_id != current_emp.emp_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="이 대화 내역에 대한 접근 권한이 없습니다."
+            )
+
     logs = (
         db.query(ChatbotLog)
         .filter(ChatbotLog.session_id == session_id)
@@ -585,66 +610,86 @@ def _next_version_file_name(db: Session, base_name: str, ext: str) -> str:
 @router.post("/chatbot/edit-r2-document", response_model=ChatResponse, summary="R2 문서 수정")
 async def edit_r2_document(
     message: str = Form(...),
+    session_id: Optional[str] = Form(None),
     db: Session = Depends(get_db),
+    current_emp: Optional[Employee] = Depends(get_optional_employee),
 ) -> ChatResponse:
     """
     DB에서 파일명으로 문서 찾기 → R2 다운로드 → GPT 수정 → 버전 이름으로 R2 재업로드
     예시: "직원안전교육.csv에서 정우진 교육1을 미완료로 바꿔줘"
     """
-    # 1. 메시지에서 파일명 추출
+    # 1. 세션 식별 및 생성
+    emp_id = current_emp.emp_id if current_emp else None
+    session_id = _get_or_create_session(db, session_id, emp_id, message)
+
+    # 2. 메시지에서 파일명 추출
     file_name = _extract_csv_file_name(message, db)
     if not file_name:
+        reply = "파일명을 찾을 수 없습니다. 예시: '직원안전교육.csv에서 정우진 교육1을 미완료로 바꿔줘'"
+        _log_chatbot_interaction(db, session_id, message, reply, "gpt")
         return ChatResponse(
-            reply="파일명을 찾을 수 없습니다. 예시: '직원안전교육.csv에서 정우진 교육1을 미완료로 바꿔줘'",
+            reply=reply,
             source="gpt",
+            session_id=session_id,
         )
 
-    # 2. DB에서 파일 찾기
+    # 3. DB에서 파일 찾기
     doc = db.execute(select(Document).where(Document.file_name == file_name)).scalars().first()
     if not doc:
-        return ChatResponse(reply=f"'{file_name}' 파일을 DB에서 찾을 수 없습니다. 파일명을 정확히 입력해주세요.", source="gpt")
+        reply = f"'{file_name}' 파일을 DB에서 찾을 수 없습니다. 파일명을 정확히 입력해주세요."
+        _log_chatbot_interaction(db, session_id, message, reply, "gpt")
+        return ChatResponse(reply=reply, source="gpt", session_id=session_id)
 
-    # 3. R2에서 파일 다운로드
+    # 4. R2에서 파일 다운로드
     try:
         _, file_bytes = get_document_bytes(db=db, file_id=doc.file_id)
     except Exception as e:
-        return ChatResponse(reply=f"R2에서 파일을 가져오는 중 오류가 발생했습니다: {e}", source="gpt")
+        reply = f"R2에서 파일을 가져오는 중 오류가 발생했습니다: {e}"
+        _log_chatbot_interaction(db, session_id, message, reply, "gpt")
+        return ChatResponse(reply=reply, source="gpt", session_id=session_id)
 
-    # 4. CSV 디코딩
+    # 5. CSV 디코딩
     decoded = _decode_csv_bytes(file_bytes)
     if decoded is None:
-        return ChatResponse(reply="CSV 파일 인코딩을 인식할 수 없습니다.", source="gpt")
+        reply = "CSV 파일 인코딩을 인식할 수 없습니다."
+        _log_chatbot_interaction(db, session_id, message, reply, "gpt")
+        return ChatResponse(reply=reply, source="gpt", session_id=session_id)
 
-    # 5. GPT에 수정 요청
+    # 6. GPT에 수정 요청
     try:
         gpt_reply, csv_data = _edit_csv_with_gpt(db=db, message=message, file_name=file_name, csv_text=decoded)
     except Exception as e:
-        return ChatResponse(reply=f"GPT 응답 생성 중 오류가 발생했습니다: {e}", source="gpt")
+        reply = f"GPT 응답 생성 중 오류가 발생했습니다: {e}"
+        _log_chatbot_interaction(db, session_id, message, reply, "gpt")
+        return ChatResponse(reply=reply, source="gpt", session_id=session_id)
 
     if csv_data is None:
         # CSV 수정이 필요 없는 일반 답변
-        return ChatResponse(reply=gpt_reply, source="gpt")
+        _log_chatbot_interaction(db, session_id, message, gpt_reply, "gpt")
+        return ChatResponse(reply=gpt_reply, source="gpt", session_id=session_id)
 
     # 변경 내용 설명 없이 완료 메시지만 응답 (다운로드 버튼으로 결과 확인)
     reply_text = "수정이 완료되었습니다."
 
-    # 6. CSV 형식 표준화 + 버전 이름 생성 (예: 직원안전교육_v0.1.csv)
+    # 7. CSV 형식 표준화 + 버전 이름 생성 (예: 직원안전교육_v0.1.csv)
     normalized_csv = _normalize_csv_text(csv_data)
     base_name, ext = file_name.rsplit(".", 1)
     new_file_name = _next_version_file_name(db, base_name, ext)
 
-    # 7. R2 경로 설정 (원본과 같은 폴더)
+    # 8. R2 경로 설정 (원본과 같은 폴더)
     original_prefix = doc.file_path.rsplit("/", 1)[0] + "/" if "/" in doc.file_path else ""
     new_r2_key = f"{original_prefix}{new_file_name}"
     new_bytes = normalized_csv.encode("utf-8-sig")
 
-    # 8. R2에 업로드
+    # 9. R2에 업로드
     try:
         upload_bytes_to_r2(data=new_bytes, r2_key=new_r2_key, content_type="text/csv")
     except Exception as e:
-        return ChatResponse(reply=f"R2 업로드 중 오류가 발생했습니다: {e}", source="gpt")
+        reply = f"R2 업로드 중 오류가 발생했습니다: {e}"
+        _log_chatbot_interaction(db, session_id, message, reply, "gpt")
+        return ChatResponse(reply=reply, source="gpt", session_id=session_id)
 
-    # 9. DB에 새 문서 메타데이터 저장 (+ 안전교육 CSV면 관련 테이블도 동기화)
+    # 10. DB에 새 문서 메타데이터 저장 (+ 안전교육 CSV면 관련 테이블도 동기화)
     try:
         new_doc, _ = _upsert_document_metadata(
             db,
@@ -667,11 +712,14 @@ async def edit_r2_document(
         db.refresh(new_doc)
     except Exception as e:
         db.rollback()
-        return ChatResponse(reply=f"DB 저장 중 오류가 발생했습니다: {e}", source="gpt")
+        reply = f"DB 저장 중 오류가 발생했습니다: {e}"
+        _log_chatbot_interaction(db, session_id, message, reply, "gpt")
+        return ChatResponse(reply=reply, source="gpt", session_id=session_id)
 
-    # 10. 다운로드 링크 반환
+    # 11. 다운로드 링크 반환
     reply_text += f"\n\n📥 DOWNLOAD:{new_doc.file_id}:{new_file_name}"
-    return ChatResponse(reply=reply_text, source="gpt")
+    _log_chatbot_interaction(db, session_id, message, reply_text, "gpt")
+    return ChatResponse(reply=reply_text, source="gpt", session_id=session_id)
 
 # ─── Text-to-SQL 엔드포인트 ──────────────────────────────────
 DB_SCHEMA = """
@@ -723,10 +771,15 @@ DB_SCHEMA = """
 async def text_to_sql(
     body: ChatRequest,
     db: Session = Depends(get_db),
+    current_emp: Optional[Employee] = Depends(get_optional_employee),
 ) -> ChatResponse:
     from sqlalchemy import text as sql_text
 
-    # 1. LLM에게 SQL 생성 요청
+    # 1. 세션 식별 및 생성
+    emp_id = current_emp.emp_id if current_emp else None
+    session_id = _get_or_create_session(db, body.session_id, emp_id, body.message)
+
+    # 2. LLM에게 SQL 생성 요청
     sql_prompt = f"""당신은 PostgreSQL 전문가입니다. 아래 DB 스키마를 보고 사용자 질문에 맞는 SQL 쿼리를 생성해주세요.
 
 {DB_SCHEMA}
@@ -749,7 +802,7 @@ async def text_to_sql(
     generated_sql = sql_response.choices[0].message.content.strip()
     generated_sql = generated_sql.replace("```sql", "").replace("```", "").strip()
 
-    # 2. SQL 실행
+    # 3. SQL 실행
     try:
         result = db.execute(sql_text(generated_sql))
         rows = result.fetchall()
@@ -762,9 +815,11 @@ async def text_to_sql(
             data_rows = [" | ".join(str(v) for v in row) for row in rows]
             data_str = header + "\n" + "\n".join(data_rows)
     except Exception as e:
-        return ChatResponse(reply=f"SQL 실행 오류: {e}\n\n생성된 SQL: {generated_sql}", source="sql")
+        reply = f"SQL 실행 오류: {e}\n\n생성된 SQL: {generated_sql}"
+        _log_chatbot_interaction(db, session_id, body.message, reply, "sql")
+        return ChatResponse(reply=reply, source="sql", session_id=session_id)
 
-    # 3. 결과를 LLM에 줘서 자연어 답변 생성
+    # 4. 결과를 LLM에 줘서 자연어 답변 생성
     answer_prompt = f"""사용자 질문: {body.message}
 
 조회 결과:
@@ -779,4 +834,5 @@ async def text_to_sql(
     )
 
     reply = answer_response.choices[0].message.content.strip()
-    return ChatResponse(reply=reply, source="sql")
+    _log_chatbot_interaction(db, session_id, body.message, reply, "sql")
+    return ChatResponse(reply=reply, source="sql", session_id=session_id)

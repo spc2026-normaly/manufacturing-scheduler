@@ -52,6 +52,9 @@ async function fetchBotReply(message: string, sessionId: string | null, file?: F
   if (isCsvEditRequest(message)) {
     const formData = new FormData();
     formData.append("message", message);
+    if (sessionId) {
+      formData.append("session_id", sessionId);
+    }
     const res = await fetch("/api/chatbot/edit-r2-document", {
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -129,12 +132,20 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
     if (storedSessionId) {
       setSessionId(storedSessionId);
       loadChatHistory(storedSessionId);
+      loadSessionsList(storedSessionId);
     } else {
       // 세션이 없으면 새로 생성
       handleStartNewChat();
     }
-    loadSessionsList();
   }, []);
+
+  // 패널이 열릴 때 세션 정합성 체크 및 목록 로드
+  useEffect(() => {
+    if (isOpen && typeof window !== "undefined") {
+      const storedSessionId = localStorage.getItem("chatbot_current_session_id");
+      loadSessionsList(storedSessionId);
+    }
+  }, [isOpen]);
 
   // 메시지가 바뀌거나 패널이 열릴 때 스크롤 최하단 이동
   useEffect(() => {
@@ -195,7 +206,7 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
   };
 
   // 세션 목록 API 호출
-  const loadSessionsList = async () => {
+  const loadSessionsList = async (activeId?: string | null) => {
     try {
       const token = localStorage.getItem("token");
       const localIds = localStorage.getItem("chatbot_local_session_ids") || "";
@@ -211,6 +222,25 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
       if (res.ok) {
         const data: ChatSessionInfo[] = await res.json();
         setSessions(data);
+
+        // activeId가 지정되어 있고 세션 데이터가 있는 경우 소유권 정합성 체크
+        if (activeId && data.length > 0 && token) {
+          const isExists = data.some((s) => s.session_id === activeId);
+          if (!isExists) {
+            console.log("⚠️ 현재 활성화된 세션이 본인의 세션 목록에 없습니다. 세션을 초기화합니다.");
+            const newId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
+            setSessionId(newId);
+            localStorage.setItem("chatbot_current_session_id", newId);
+            
+            const localIdsStr = localStorage.getItem("chatbot_local_session_ids") || "";
+            const localIds = localIdsStr ? localIdsStr.split(",") : [];
+            if (!localIds.includes(newId)) {
+              localIds.push(newId);
+              localStorage.setItem("chatbot_local_session_ids", localIds.join(","));
+            }
+            setChatMessages(DEFAULT_MESSAGES);
+          }
+        }
       }
     } catch (err) {
       console.error("❌ 세션 목록 로드 에러:", err);
@@ -308,11 +338,17 @@ export default function AIChatbot({ initialMessages }: AIChatbotProps) {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ message: userMsg }),
+        body: JSON.stringify({ message: userMsg, session_id: sessionId }),
       });
       if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
-      const data: { reply: string; source: string } = await res.json();
+      const data: { reply: string; source: string; session_id?: string } = await res.json();
       reply = data.reply;
+
+      if (data.session_id && data.session_id !== sessionId) {
+        setSessionId(data.session_id);
+        localStorage.setItem("chatbot_current_session_id", data.session_id);
+        loadSessionsList(data.session_id);
+      }
     } else {
       const result = await fetchBotReply(userMsg, sessionId, attachedFile || undefined);
       reply = result.reply;

@@ -54,7 +54,7 @@ export default function SchedulesPage() {
   } = useSchedules();
 
   return (
-    <div className={`${styles.schedContainer} animate-in`}>
+    <div id="sched-container-root" className={`${styles.schedContainer} animate-in`}>
       {/* ── Header tab navigation ── */}
       <ScheduleHeader
         currentTab={currentTab}

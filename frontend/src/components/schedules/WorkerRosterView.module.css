@@ -257,28 +257,7 @@
   flex-direction: column;
 }
 
-/* 점심시간 오버레이 */
-.lunchTimeOverlay {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background-color: rgba(148, 163, 184, 0.08);
-  border-left: 1px dashed rgba(148, 163, 184, 0.3);
-  border-right: 1px dashed rgba(148, 163, 184, 0.3);
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-.lunchText {
-  font-size: 10.5px;
-  font-weight: 700;
-  color: #94a3b8;
-  letter-spacing: 1px;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-}
+
 
 /* 타임라인 Row */
 .timelineRow {
@@ -545,26 +524,7 @@
   display: flex;
 }
 
-/* 점심시간 가로 전체 오버레이 */
-.lunchTimeVerticalOverlay {
-  position: absolute;
-  left: 0;
-  right: 0;
-  background-color: rgba(148, 163, 184, 0.07);
-  border-top: 1px dashed rgba(148, 163, 184, 0.3);
-  border-bottom: 1px dashed rgba(148, 163, 184, 0.3);
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-.lunchTextVertical {
-  font-size: 11px;
-  font-weight: 700;
-  color: #94a3b8;
-  letter-spacing: 2px;
-}
+
 
 /* 세로 그리드 가로 실선 */
 .verticalGridLines {

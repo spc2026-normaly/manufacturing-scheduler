@@ -21,6 +21,29 @@ interface GanttMonthViewProps {
   showToast: (msg: string) => void;
 }
 
+// Helper function to split tasks into non-overlapping tracks
+function splitIntoTracks(tasks: ProductionTask[]): ProductionTask[][] {
+  const sorted = [...tasks].sort((a, b) => a.startWeek - b.startWeek);
+  const tracks: ProductionTask[][] = [];
+
+  for (const task of sorted) {
+    let placed = false;
+    for (const track of tracks) {
+      const last = track[track.length - 1];
+      if (last.endWeek < task.startWeek) {
+        track.push(task);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      tracks.push([task]);
+    }
+  }
+
+  return tracks.length > 0 ? tracks : [[]];
+}
+
 export function GanttMonthView({
   selectedDate,
   setSelectedDate,
@@ -39,6 +62,8 @@ export function GanttMonthView({
   handleMouseMove,
   showToast,
 }: GanttMonthViewProps) {
+
+
 
   // Helper to map colorClass name to local CSS Module style key
   const getColorClass = (colorClass: string) => {
@@ -129,60 +154,91 @@ export function GanttMonthView({
                 const facilityTasks = tasks.filter((t) => t.facility === facility);
                 const uniqueOrderNums = Array.from(new Set(facilityTasks.map((t) => t.orderNum)));
 
-                return uniqueOrderNums.map((orderNum, idx) => {
+                // Calculate tracks for each orderNum in this facility
+                const orderTracksMap = new Map<string, ProductionTask[][]>();
+                let totalTracksForFacility = 0;
+                uniqueOrderNums.forEach((orderNum) => {
                   const orderTasks = facilityTasks.filter((t) => t.orderNum === orderNum);
-                  const productName = orderTasks[0]?.product || "";
-                  const isFirstForFacility = idx === 0;
+                  const tracks = splitIntoTracks(orderTasks);
+                  orderTracksMap.set(orderNum, tracks);
+                  totalTracksForFacility += tracks.length;
+                });
 
-                  return (
-                    <tr key={`${facility}_${orderNum}`} className={styles.eqRow}>
-                      {isFirstForFacility && (
-                        <td className={styles.ganttColFacility} rowSpan={uniqueOrderNums.length}>
-                          {facility}
-                        </td>
-                      )}
-                      <td className={styles.ganttColTask}>{orderNum}</td>
-                      <td className={styles.ganttColEq}>{productName}</td>
-                      {monthWeeks.map((_, weekIndex) => {
-                        const task = orderTasks.find((t) => t.startWeek === weekIndex);
-                        const isWithin = orderTasks.some((t) => weekIndex > t.startWeek && weekIndex <= t.endWeek);
+                let renderedFirstFacilityCell = false;
 
-                        if (isWithin) {
-                          return null;
+                return (
+                  <React.Fragment key={facility}>
+                    {uniqueOrderNums.map((orderNum, orderIdx) => {
+                      const tracks = orderTracksMap.get(orderNum) || [[]];
+                      const productName = (facilityTasks.find((t) => t.orderNum === orderNum))?.product || "";
+
+                      return tracks.map((track, trackIdx) => {
+                        const isFirstTrackForOrder = trackIdx === 0;
+                        const isFirstRowForFacility = !renderedFirstFacilityCell;
+                        if (isFirstRowForFacility) {
+                          renderedFirstFacilityCell = true;
                         }
 
-                        const colSpan = task ? (task.endWeek - task.startWeek + 1) : 1;
-
                         return (
-                          <td
-                            key={weekIndex}
-                            colSpan={colSpan}
-                            className={styles.ganttCellDay}
-                          >
-                            {task && (
-                              <div
-                                className={`${styles.ganttBlock} ${getColorClass(task.colorClass)}`}
-                                onMouseEnter={(e) => {
-                                  setHoveredTask(task);
-                                  handleMouseMove(e);
-                                }}
-                                onMouseMove={handleMouseMove}
-                                onMouseLeave={() => setHoveredTask(null)}
-                                onClick={() => {
-                                  setSelectedDate(monthWeeks[weekIndex].monday);
-                                  setCurrentTab("day");
-                                  showToast(`${monthWeeks[weekIndex].label} 상세 계획으로 이동했습니다.`);
-                                }}
-                              >
-                                {task.taskName}
-                              </div>
+                          <tr key={`${facility}_${orderNum}_t${trackIdx}`} className={styles.eqRow}>
+                            {isFirstRowForFacility && (
+                              <td className={styles.ganttColFacility} rowSpan={totalTracksForFacility}>
+                                {facility}
+                              </td>
                             )}
-                          </td>
+                            {isFirstTrackForOrder && (
+                              <>
+                                <td className={styles.ganttColTask} rowSpan={tracks.length}>
+                                  {orderNum}
+                                </td>
+                                <td className={styles.ganttColEq} rowSpan={tracks.length}>
+                                  {productName}
+                                </td>
+                              </>
+                            )}
+                            {monthWeeks.map((_, weekIndex) => {
+                              const task = track.find((t) => t.startWeek === weekIndex);
+                              const isWithin = track.some((t) => weekIndex > t.startWeek && weekIndex <= t.endWeek);
+
+                              if (isWithin) {
+                                return null;
+                              }
+
+                              const colSpan = task ? (task.endWeek - task.startWeek + 1) : 1;
+
+                              return (
+                                <td
+                                  key={weekIndex}
+                                  colSpan={colSpan}
+                                  className={styles.ganttCellDay}
+                                >
+                                  {task && (
+                                    <div
+                                      className={`${styles.ganttBlock} ${getColorClass(task.colorClass)}`}
+                                      onMouseEnter={(e) => {
+                                        setHoveredTask(task);
+                                        handleMouseMove(e);
+                                      }}
+                                      onMouseMove={handleMouseMove}
+                                      onMouseLeave={() => setHoveredTask(null)}
+                                      onClick={() => {
+                                        setSelectedDate(monthWeeks[weekIndex].monday);
+                                        setCurrentTab("day");
+                                        showToast(`${monthWeeks[weekIndex].label} 상세 계획으로 이동했습니다.`);
+                                      }}
+                                    >
+                                      {task.taskName}
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
                         );
-                      })}
-                    </tr>
-                  );
-                });
+                      });
+                    })}
+                  </React.Fragment>
+                );
               })}
             </tbody>
           </table>
@@ -217,65 +273,90 @@ export function GanttMonthView({
                 const uniqueFacilities = Array.from(new Set(orderTasks.map((t) => t.facility)));
                 const productName = orderTasks[0]?.product || "";
 
-                return uniqueFacilities.map((facility, idx) => {
+                // Calculate tracks for each facility in this order
+                const facilityTracksMap = new Map<string, ProductionTask[][]>();
+                let totalTracksForOrder = 0;
+                uniqueFacilities.forEach((facility) => {
                   const facilityOrderTasks = orderTasks.filter((t) => t.facility === facility);
-                  const isFirstForOrder = idx === 0;
+                  const tracks = splitIntoTracks(facilityOrderTasks);
+                  facilityTracksMap.set(facility, tracks);
+                  totalTracksForOrder += tracks.length;
+                });
 
-                  return (
-                    <tr key={`${orderNum}_${facility}`} className={styles.eqRow}>
-                      {isFirstForOrder && (
-                        <>
-                          <td className={styles.ganttColTask} rowSpan={uniqueFacilities.length} style={{ fontWeight: "700", textAlign: "center", backgroundColor: "#f8fafc" }}>
-                            {orderNum}
-                          </td>
-                          <td className={styles.ganttColEq} rowSpan={uniqueFacilities.length} style={{ fontWeight: "600", fontSize: "13px" }}>
-                            {productName}
-                          </td>
-                        </>
-                      )}
-                      <td className={styles.ganttColFacility} style={{ color: "#1e3a8a", fontWeight: "700", textAlign: "center", backgroundColor: "#f8fafc" }}>
-                        {facility}
-                      </td>
-                      {monthWeeks.map((_, weekIndex) => {
-                        const task = facilityOrderTasks.find((t) => t.startWeek === weekIndex);
-                        const isWithin = facilityOrderTasks.some((t) => weekIndex > t.startWeek && weekIndex <= t.endWeek);
+                let renderedFirstOrderCell = false;
 
-                        if (isWithin) {
-                          return null;
+                return (
+                  <React.Fragment key={orderNum}>
+                    {uniqueFacilities.map((facility, facilityIdx) => {
+                      const tracks = facilityTracksMap.get(facility) || [[]];
+
+                      return tracks.map((track, trackIdx) => {
+                        const isFirstTrackForFacility = trackIdx === 0;
+                        const isFirstRowForOrder = !renderedFirstOrderCell;
+                        if (isFirstRowForOrder) {
+                          renderedFirstOrderCell = true;
                         }
 
-                        const colSpan = task ? (task.endWeek - task.startWeek + 1) : 1;
-
                         return (
-                          <td
-                            key={weekIndex}
-                            colSpan={colSpan}
-                            className={styles.ganttCellDay}
-                          >
-                            {task && (
-                              <div
-                                className={`${styles.ganttBlock} ${getColorClass(task.colorClass)}`}
-                                onMouseEnter={(e) => {
-                                  setHoveredTask(task);
-                                  handleMouseMove(e);
-                                }}
-                                onMouseMove={handleMouseMove}
-                                onMouseLeave={() => setHoveredTask(null)}
-                                onClick={() => {
-                                  setSelectedDate(monthWeeks[weekIndex].monday);
-                                  setCurrentTab("day");
-                                  showToast(`${monthWeeks[weekIndex].label} 상세 계획으로 이동했습니다.`);
-                                }}
-                              >
-                                {task.taskName}
-                              </div>
+                          <tr key={`${orderNum}_${facility}_t${trackIdx}`} className={styles.eqRow}>
+                            {isFirstRowForOrder && (
+                              <>
+                                <td className={styles.ganttColTask} rowSpan={totalTracksForOrder} style={{ fontWeight: "700", textAlign: "center", backgroundColor: "#f8fafc" }}>
+                                  {orderNum}
+                                </td>
+                                <td className={styles.ganttColEq} rowSpan={totalTracksForOrder} style={{ fontWeight: "600", fontSize: "13px" }}>
+                                  {productName}
+                                </td>
+                              </>
                             )}
-                          </td>
+                            {isFirstTrackForFacility && (
+                              <td className={styles.ganttColFacility} rowSpan={tracks.length} style={{ color: "#1e3a8a", fontWeight: "700", textAlign: "center", backgroundColor: "#f8fafc" }}>
+                                {facility}
+                              </td>
+                            )}
+                            {monthWeeks.map((_, weekIndex) => {
+                              const task = track.find((t) => t.startWeek === weekIndex);
+                              const isWithin = track.some((t) => weekIndex > t.startWeek && weekIndex <= t.endWeek);
+
+                              if (isWithin) {
+                                return null;
+                              }
+
+                              const colSpan = task ? (task.endWeek - task.startWeek + 1) : 1;
+
+                              return (
+                                <td
+                                  key={weekIndex}
+                                  colSpan={colSpan}
+                                  className={styles.ganttCellDay}
+                                >
+                                  {task && (
+                                    <div
+                                      className={`${styles.ganttBlock} ${getColorClass(task.colorClass)}`}
+                                      onMouseEnter={(e) => {
+                                        setHoveredTask(task);
+                                        handleMouseMove(e);
+                                      }}
+                                      onMouseMove={handleMouseMove}
+                                      onMouseLeave={() => setHoveredTask(null)}
+                                      onClick={() => {
+                                        setSelectedDate(monthWeeks[weekIndex].monday);
+                                        setCurrentTab("day");
+                                        showToast(`${monthWeeks[weekIndex].label} 상세 계획으로 이동했습니다.`);
+                                      }}
+                                    >
+                                      {task.taskName}
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
                         );
-                      })}
-                    </tr>
-                  );
-                });
+                      });
+                    })}
+                  </React.Fragment>
+                );
               })}
             </tbody>
           </table>

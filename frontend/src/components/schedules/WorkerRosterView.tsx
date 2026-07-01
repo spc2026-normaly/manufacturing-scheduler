@@ -155,10 +155,6 @@ export function WorkerRosterView({
               </div>
 
               <div className={styles.timelineRowsContainer}>
-                {/* 점심시간 영역 안내 (12:00 ~ 13:00) */}
-                <div className={styles.lunchTimeOverlay} style={{ left: "33.333%", width: "11.111%" }}>
-                  <span className={styles.lunchText}>점심시간</span>
-                </div>
 
                 {allWorkersThisWeek.map((workerName, wIdx) => {
                   // 이 작업자에게 배정된 당일 태스크 필터링
@@ -254,10 +250,6 @@ export function WorkerRosterView({
 
                 {/* 세로 차트 드로잉 영역 */}
                 <div className={styles.verticalChartArea}>
-                  {/* 점심시간 가로 밴드 */}
-                  <div className={styles.lunchTimeVerticalOverlay} style={{ top: "33.333%", height: "11.111%" }}>
-                    <span className={styles.lunchTextVertical}>점심시간 (12:00 ~ 13:00)</span>
-                  </div>
 
                   {/* 격자 수평 실선 */}
                   <div className={styles.verticalGridLines}>

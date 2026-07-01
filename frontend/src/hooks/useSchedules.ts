@@ -368,7 +368,7 @@ export function useSchedules() {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    const container = document.querySelector(".sched-container");
+    const container = document.getElementById("sched-container-root");
     if (container) {
       const rect = container.getBoundingClientRect();
       setTooltipPos({

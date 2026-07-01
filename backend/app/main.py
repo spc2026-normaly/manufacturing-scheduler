@@ -76,8 +76,8 @@ app = FastAPI(
     title="Manufacturing Scheduler API",
     description="생산 일정 관리 시스템 백엔드 API",
     version="0.1.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
     lifespan=lifespan,
 )
 

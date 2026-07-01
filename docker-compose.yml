@@ -6,9 +6,9 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB 환경 변수가 설정되지 않았습니다.}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER 환경 변수가 설정되지 않았습니다.}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 환경 변수가 설정되지 않았습니다.}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db:/docker-entrypoint-initdb.d:ro  # 초기화 SQL 스크립트 마운트

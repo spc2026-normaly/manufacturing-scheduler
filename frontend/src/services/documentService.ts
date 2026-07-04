@@ -48,3 +48,21 @@ export async function syncR2Data(): Promise<Response> {
     }
   });
 }
+
+export interface TemplateFileItem {
+  key: string;
+  file_name: string;
+  size: number;
+  last_modified?: string | null;
+}
+
+export async function fetchTemplates(): Promise<Response> {
+  return fetch(`${API_BASE}/templates`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+    cache: "no-store",
+  });
+}
+
+export async function downloadTemplateUrl(key: string): Promise<string> {
+  return `${API_BASE}/templates/download?key=${encodeURIComponent(key)}&token=${getToken()}`;
+}

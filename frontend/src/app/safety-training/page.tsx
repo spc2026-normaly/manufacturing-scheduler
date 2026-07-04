@@ -34,6 +34,7 @@ interface ApiSafetyTraining {
 export default function SafetyTrainingPage() {
   const [workersData, setWorkersData] = useState<WorkerSafetyData[]>([]);
   const [trainingNames, setTrainingNames] = useState<string[]>([]);
+  const [trainingLabels, setTrainingLabels] = useState<Record<string, string>>({});
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
@@ -60,29 +61,66 @@ export default function SafetyTrainingPage() {
     else return { state: "completed", dday: `D-${diffDays}` };
   };
 
+  const normalizeTrainingCode = (name: string): string => {
+    const m = String(name || "").match(/(\d{1,2})/);
+    if (!m) return String(name || "").trim();
+    return `교육${parseInt(m[1], 10)}`;
+  };
+
+  const sortTrainingCodes = (values: string[]): string[] => {
+    return [...values].sort((a, b) => {
+      const ma = a.match(/(\d{1,3})/);
+      const mb = b.match(/(\d{1,3})/);
+      if (!ma && !mb) return a.localeCompare(b, "ko");
+      if (!ma) return 1;
+      if (!mb) return -1;
+      return parseInt(ma[1], 10) - parseInt(mb[1], 10);
+    });
+  };
+
   const fetchSafetyTrainings = async () => {
     try {
       const headers = getAuthHeaders();
-      const meRes = await fetch("/api/auth/me", { headers });
+      const meRes = await fetch("/api/auth/me", { headers, cache: "no-store" });
       if (meRes.status === 403) { setIsForbidden(true); setLoading(false); return; }
       if (!meRes.ok) throw new Error("Failed to fetch current user");
       const meData = await meRes.json();
       setCurrentUser(meData);
 
-      const tnRes = await fetch("/api/safety-trainings/training-names", { headers });
+      const tnRes = await fetch("/api/safety-trainings/training-names", { headers, cache: "no-store" });
       if (tnRes.status === 403) { setIsForbidden(true); setLoading(false); return; }
       let names: string[] = [];
       if (tnRes.ok) {
         const tnData = await tnRes.json();
         names = tnData.training_names || [];
-        setTrainingNames(names);
       }
+
+      let labelMap: Record<string, string> = {};
+      const labelRes = await fetch("/api/safety-trainings/training-labels", { headers, cache: "no-store" });
+      if (labelRes.ok) {
+        const labelData = await labelRes.json();
+        labelMap = labelData?.labels || {};
+        setTrainingLabels(labelMap);
+      } else {
+        setTrainingLabels({});
+      }
+
+      const docCodes = sortTrainingCodes(
+        Array.from(new Set(Object.keys(labelMap).map(normalizeTrainingCode)))
+      );
+      const csvCodes = sortTrainingCodes(
+        Array.from(new Set(names.map(normalizeTrainingCode)))
+      );
+      const sourceNames = (docCodes.length > 0 ? docCodes : csvCodes).length > 0
+        ? (docCodes.length > 0 ? docCodes : csvCodes)
+        : ["안전교육1", "안전교육2", "안전교육3", "안전교육4", "안전교육5"];
+      setTrainingNames(sourceNames);
 
       let employees: ApiEmployee[] = [];
       let trainingUrl = "/api/safety-trainings";
 
       if (meData.emp_role === "leader") {
-        const empRes = await fetch("/api/employees?limit=500", { headers });
+        const empRes = await fetch("/api/employees?limit=500", { headers, cache: "no-store" });
         if (empRes.status === 403) { setIsForbidden(true); setLoading(false); return; }
         if (!empRes.ok) throw new Error("Failed to fetch employees");
         const empResult = await empRes.json();
@@ -92,7 +130,7 @@ export default function SafetyTrainingPage() {
         trainingUrl += `?emp_id=${meData.emp_id}`;
       }
 
-      const trainingRes = await fetch(trainingUrl, { headers });
+      const trainingRes = await fetch(trainingUrl, { headers, cache: "no-store" });
       if (trainingRes.status === 403) { setIsForbidden(true); setLoading(false); return; }
       if (!trainingRes.ok) throw new Error("Failed to fetch safety trainings");
       const trainings: ApiSafetyTraining[] = await trainingRes.json();
@@ -102,10 +140,9 @@ export default function SafetyTrainingPage() {
         const trainingMap = new Map<string, TrainingStatus>();
         empTrainings.forEach((record) => {
           const statusCalc = calculateTrainingStatus(record.expired_date);
-          trainingMap.set(record.training_name, { state: statusCalc.state, date: record.expired_date.replace(/-/g, "."), dday: statusCalc.dday });
+          trainingMap.set(normalizeTrainingCode(record.training_name), { state: statusCalc.state, date: record.expired_date.replace(/-/g, "."), dday: statusCalc.dday });
         });
-        const sourceNames = names.length > 0 ? names : ["안전교육1","안전교육2","안전교육3","안전교육4","안전교육5"];
-        return { emp_name: emp.emp_name, login_id: emp.login_id, trainings: sourceNames.map((name) => trainingMap.get(name) || { state: "none" }) };
+        return { emp_name: emp.emp_name, login_id: emp.login_id, trainings: sourceNames.map((name) => trainingMap.get(normalizeTrainingCode(name)) || { state: "none" }) };
       });
 
       setWorkersData(mappedWorkers);
@@ -182,6 +219,9 @@ export default function SafetyTrainingPage() {
         .st-search-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 12px; color: #94a3b8; pointer-events: none; }
         .st-table { width: 100%; border-collapse: collapse; text-align: left; }
         .st-table th { background-color: #f8fafc; padding: 12px 24px; font-size: 13px; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+        .st-table .st-header-center { text-align: center; }
+        .st-table .st-header-main { display: block; font-size: 13px; font-weight: 700; color: #334155; line-height: 1.1; }
+        .st-table .st-header-sub { display: block; margin-top: 4px; font-size: 11px; font-weight: 500; color: #64748b; line-height: 1.1; }
         .st-table td { padding: 14px 24px; font-size: 14px; color: #334155; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
         .st-row:hover { background-color: #f8fafc; }
         .st-cell-name { font-weight: 600; color: #0f172a; }
@@ -268,7 +308,10 @@ export default function SafetyTrainingPage() {
                 <th style={{ minWidth: 150 }}>직원명</th>
                 <th style={{ minWidth: 100 }}>아이디</th>
                 {(trainingNames.length > 0 ? trainingNames : ["안전교육1","안전교육2","안전교육3","안전교육4","안전교육5"]).map((name, idx) => (
-                  <th key={idx} style={{ minWidth: 110 }}>{name}</th>
+                  <th key={idx} style={{ minWidth: 110 }} className="st-header-center">
+                    <span className="st-header-main">{name}</span>
+                    <span className="st-header-sub">{trainingLabels[normalizeTrainingCode(name)] || "-"}</span>
+                  </th>
                 ))}
               </tr>
             </thead>

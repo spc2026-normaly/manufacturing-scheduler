@@ -7,11 +7,17 @@ const getAuthHeaders = () => {
 };
 
 export async function fetchEquipments(): Promise<Response> {
-  return fetch("/api/equipments", { headers: getAuthHeaders() });
+  return fetch("/api/equipments", {
+    headers: getAuthHeaders(),
+    cache: "no-store"
+  });
 }
 
 export async function fetchUpcomingEquipments(days: number = 7): Promise<Response> {
-  return fetch(`/api/equipments?upcoming_days=${days}`, { headers: getAuthHeaders() });
+  return fetch(`/api/equipments?upcoming_days=${days}`, {
+    headers: getAuthHeaders(),
+    cache: "no-store"
+  });
 }
 
 export async function uploadEquipmentCsv(file: File): Promise<Response> {

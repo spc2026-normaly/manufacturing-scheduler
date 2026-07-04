@@ -15,7 +15,6 @@ export default function DocumentsPage() {
     scheduleStatus,
     progress,
     r2SyncMessage,
-    r2Syncing,
     searchQuery,
     setSearchQuery,
     sortField,
@@ -24,7 +23,6 @@ export default function DocumentsPage() {
     handleDrag,
     handleDrop,
     handleFileChange,
-    handleSyncR2,
     handleDelete,
     handleDownload,
     uploadProgress,
@@ -44,12 +42,10 @@ export default function DocumentsPage() {
         {/* ── Upload Section ── */}
         <UploadSection
           dragActive={dragActive}
-          r2Syncing={r2Syncing}
           scheduleStatus={scheduleStatus}
           handleDrag={handleDrag}
           handleDrop={handleDrop}
           handleFileChange={handleFileChange}
-          handleSyncR2={handleSyncR2}
           uploadProgress={uploadProgress}
           uploadingFileName={uploadingFileName}
         />

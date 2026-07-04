@@ -21,7 +21,8 @@ def _decode_csv(file_bytes: bytes) -> str:
 
 def _normalize(text_value: str) -> str:
     value = (text_value or "").strip().lower()
-    return re.sub(r"[^0-9a-z가-힣]", "", value)
+    # Keep Hangul syllables and jamo ranges to tolerate CSV tools that decompose Korean text.
+    return re.sub(r"[^0-9a-z가-힣ㄱ-ㅎㅏ-ㅣᄀ-ᇿ]", "", value)
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -51,14 +52,14 @@ def _parse_int(value: str | None, default: int = 0) -> int:
 
 def _read_rows(file_bytes: bytes) -> list[dict[str, str]]:
     content = _decode_csv(file_bytes)
-    
-    first_line = content.split('\n')[0] if content else ""
-    delimiter = ','
-    for d in ['\t', ';']:
+
+    first_line = content.split("\n")[0] if content else ""
+    delimiter = ","
+    for d in ["\t", ";"]:
         if d in first_line:
             delimiter = d
             break
-            
+
     reader = csv.DictReader(StringIO(content), delimiter=delimiter)
 
     # 동기화 에러 발생해서 임시 방편으로 수정
@@ -98,6 +99,48 @@ def _match_key(row: dict[str, str], candidates: list[str]) -> str | None:
     return None
 
 
+def _match_best_numeric_key(
+    rows: list[dict[str, str]], candidates: list[str]
+) -> str | None:
+    if not rows:
+        return None
+
+    header_row = rows[0]
+    candidate_norms = [_normalize(c) for c in candidates]
+
+    candidate_headers: list[str] = []
+    for header in header_row.keys():
+        if not header:
+            continue
+        norm_header = _normalize(header)
+        if any(
+            norm_header == cand_norm
+            or cand_norm in norm_header
+            or norm_header in cand_norm
+            for cand_norm in candidate_norms
+        ):
+            candidate_headers.append(header)
+
+    if not candidate_headers:
+        return None
+
+    sampled_rows = rows[:50]
+    best_header = candidate_headers[0]
+    best_score = -1
+
+    for header in candidate_headers:
+        score = 0
+        for row in sampled_rows:
+            raw = str(row.get(header, "") or "").strip()
+            if raw and re.search(r"-?\d+", raw):
+                score += 1
+        if score > best_score:
+            best_score = score
+            best_header = header
+
+    return best_header
+
+
 def _truncate_tables(db: Session, table_names: list[str]) -> None:
     """테이블 전체 데이터 삭제. CASCADE는 외래키 제약을 무시하고 관련 데이터도 함께 삭제."""
     quoted = ", ".join(table_names)
@@ -113,29 +156,57 @@ def _sync_equipments(db: Session, rows: list[dict[str, str]]) -> dict:
     key_map = {
         "eq_id": _match_key(first, ["장비uuid", "eq_id", "장비id"]),
         "eq_name": _match_key(first, ["장비명", "eq_name"]),
-        "eq_count": _match_key(first, ["장비전체수량", "장비수량", "장비전체", "eq_count"]),
+        "eq_count": _match_key(
+            first, ["장비전체수량", "장비수량", "장비전체", "eq_count"]
+        ),
         "available_eq_count": _match_key(
             first, ["가용장비수량", "사용가능수량", "가용장비", "available_eq_count"]
         ),
         "check_cycle": _match_key(first, ["점검주기", "check_cycle"]),
         "eq_status": _match_key(first, ["상태", "eq_status"]),
-        "check_date": _match_key(first, ["다음점검일", "다음점검", "check_date"]),
-        "recent_check_date": _match_key(first, ["최근점검일", "최근점검", "recent_check_date"]),
+        "check_date": _match_key(
+            first, ["다음점검일", "다음 점검일", "다음점검", "check_date"]
+        ),
+        "recent_check_date": _match_key(
+            first,
+            [
+                "최근점검일",
+                "최근 점검일",
+                "장비점검일",
+                "장비 점검일",
+                "최근점검",
+                "recent_check_date",
+            ],
+        ),
         "durability": _match_key(first, ["내구도", "durability"]),
-        "rest_duration": _match_key(first, ["장비휴식시간", "장비 휴식 시간", "rest_duration", "rest_time"]),
+        "rest_duration": _match_best_numeric_key(
+            rows,
+            [
+                "장비휴식시간",
+                "장비 휴식 시간",
+                "장비휴식시간분",
+                "장비 휴식시간(분)",
+                "rest_duration",
+                "rest_time",
+            ],
+        ),
     }
 
-    required = ["eq_id", "eq_name"]
+    required = ["eq_name"]
     missing = [field for field in required if not key_map[field]]
     if missing:
         raise ValueError(f"장비정보.csv 필수 헤더 매칭 실패: {', '.join(missing)}")
 
     payloads = []
-    for row in rows:
-        eq_id = row.get(key_map["eq_id"], "").strip()
+    for idx, row in enumerate(rows):
+        eq_id = row.get(key_map["eq_id"], "").strip() if key_map["eq_id"] else ""
         eq_name = row.get(key_map["eq_name"], "").strip()
-        if not eq_id or not eq_name:
+        if not eq_name:
             continue
+
+        if not eq_id:
+            stable_seed = _normalize(eq_name) or f"row-{idx}"
+            eq_id = f"eq_{uuid.uuid5(uuid.NAMESPACE_DNS, stable_seed).hex[:8]}"
 
         # check_date 파싱 (NULL 방지)
         check_date_val = date.today()
@@ -147,7 +218,9 @@ def _sync_equipments(db: Session, rows: list[dict[str, str]]) -> dict:
         # recent_check_date 파싱 (NULL 방지)
         recent_check_date_val = date.today()
         if key_map["recent_check_date"]:
-            parsed_recent_check_date = _parse_date(row.get(key_map["recent_check_date"]))
+            parsed_recent_check_date = _parse_date(
+                row.get(key_map["recent_check_date"])
+            )
             if parsed_recent_check_date:
                 recent_check_date_val = parsed_recent_check_date
 
@@ -228,7 +301,9 @@ def _sync_tasks_and_required_equipments(
     key_map = {
         "task_id": _match_key(first, ["작업uuid", "작업id", "task_id"]),
         "task_name": _match_key(first, ["작업명", "task_name"]),
-        "product_category": _match_key(first, ["적용제품군", "product_category", "task_type"]),
+        "product_category": _match_key(
+            first, ["적용제품군", "product_category", "task_type"]
+        ),
         "task_level": _match_key(first, ["작업단계", "task_level"]),
         "task_time": _match_key(first, ["작업시간", "작업 시간", "task_time"]),
         "task_factory": _match_key(first, ["사용공장동", "task_factory", "공장동"]),
@@ -341,7 +416,6 @@ def _sync_tasks_and_required_equipments(
     }
 
 
-
 def _sync_safety_training(db: Session, rows: list[dict[str, str]]) -> dict:
     if not rows:
         _truncate_tables(db, ["safety_training"])
@@ -426,10 +500,10 @@ def _sync_safety_training(db: Session, rows: list[dict[str, str]]) -> dict:
             payloads,
         )
 
-
     # 교육명 목록을 metadata 테이블에 저장
     if training_names:
         import json
+
         metadata_id = f"meta_{uuid.uuid4().hex[:8]}"
         db.execute(
             text("""
@@ -442,8 +516,13 @@ def _sync_safety_training(db: Session, rows: list[dict[str, str]]) -> dict:
                 "updated_at": today,
             },
         )
-    
-    return {"table": "safety_training", "rows": len(payloads), "training_names": training_names}
+
+    return {
+        "table": "safety_training",
+        "rows": len(payloads),
+        "training_names": training_names,
+    }
+
 
 def sync_schedule_input_csv(db: Session, file_name: str, file_bytes: bytes) -> dict:
     normalized_name = _normalize(file_name)

@@ -1,11 +1,17 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, BigInteger, Text, Boolean, DateTime
+from sqlalchemy import String, BigInteger, Text, Boolean, DateTime, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
+
 class Document(Base):
     __tablename__ = "documents"
+    __table_args__ = (
+        UniqueConstraint(
+            "uploader", "file_path", name="uq_documents_uploader_file_path"
+        ),
+    )
 
     file_id: Mapped[str] = mapped_column(
         String(255), primary_key=True, default=lambda: str(uuid.uuid4())
@@ -28,4 +34,3 @@ class Document(Base):
     embedding_status: Mapped[str] = mapped_column(
         String(50), nullable=False, default="pending"
     )
-

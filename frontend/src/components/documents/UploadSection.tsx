@@ -3,24 +3,20 @@ import styles from "./UploadSection.module.css";
 
 interface UploadSectionProps {
   dragActive: boolean;
-  r2Syncing: boolean;
   scheduleStatus: "idle" | "running" | "completed" | "failed";
   handleDrag: (e: React.DragEvent) => void;
   handleDrop: (e: React.DragEvent) => void;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  handleSyncR2: () => void;
   uploadProgress: number | null;
   uploadingFileName: string | null;
 }
 
 export function UploadSection({
   dragActive,
-  r2Syncing,
   scheduleStatus,
   handleDrag,
   handleDrop,
   handleFileChange,
-  handleSyncR2,
   uploadProgress,
   uploadingFileName,
 }: UploadSectionProps) {
@@ -74,16 +70,6 @@ export function UploadSection({
           </div>
         </div>
       )}
-      <div className={styles.docScheduleBtnWrapper}>
-        <button
-          className={styles.docScheduleBtn}
-          onClick={handleSyncR2}
-          disabled={r2Syncing}
-          style={{ backgroundColor: "#10b981" }}
-        >
-          {r2Syncing ? "동기화 중..." : "☁️ 클라우드페어 DB동기화"}
-        </button>
-      </div>
     </div>
   );
 }

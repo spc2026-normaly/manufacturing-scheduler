@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from fastapi import (
     APIRouter,
-    UploadFile, File, Depends,
+    UploadFile,
+    File,
+    Depends,
     HTTPException,
     Query,
     Response,
@@ -11,6 +13,7 @@ from fastapi import (
 )
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.document import Document
 from app.routers.auth import Permission, PermissionChecker, TokenData
 from app.services.document_service import (
@@ -19,17 +22,23 @@ from app.services.document_service import (
     process_uploaded_document,
     sync_r2_documents,
 )
-from app.services.r2_service import delete_file_from_r2
+from app.services.r2_service import (
+    delete_file_from_r2,
+    download_file_from_r2,
+    list_r2_objects,
+)
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
+
 
 @router.get("", summary="문서 목록 조회")
 def get_documents(
     db: Session = Depends(get_db),
-    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_READ))
+    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_READ)),
 ):
     """문서 목록 조회"""
     return db.execute(select(Document)).scalars().all()
+
 
 @router.post("/upload", summary="문서 업로드")
 async def upload_document(
@@ -37,11 +46,14 @@ async def upload_document(
     category: DocumentCategory = Query(default="rag"),
     db: Session = Depends(get_db),
     current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
-    current_claims = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
+    current_claims=Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
 ):
     from app.models.employee import Employee
-    emp = db.query(Employee).filter(Employee.login_id == current_claims.login_id).first()
-    
+
+    emp = (
+        db.query(Employee).filter(Employee.login_id == current_claims.login_id).first()
+    )
+
     """파일 업로드 + R2 저장 + 벡터 임베딩 처리 + R2 문서 동기화"""
     res = await process_uploaded_document(
         db,
@@ -49,14 +61,15 @@ async def upload_document(
         upload=file,
         category=category,
     )
-    
+
     # 파일 업로드 성공 후 R2 문서 리스트 자동 동기화
     try:
         sync_r2_documents(db, uploader=current_emp.emp_id)
     except Exception as e:
         print(f"⚠️ Failed to sync documents after upload: {str(e)}")
-        
+
     return res
+
 
 @router.post("/sync-r2", summary="R2 문서 동기화")
 def sync_documents_from_r2(
@@ -66,11 +79,58 @@ def sync_documents_from_r2(
     """R2 클라우드페어의 모든 파일을 DB와 동기화 (추가/업데이트/삭제)"""
     return sync_r2_documents(db, uploader=current_emp.emp_id)
 
+
+@router.get("/templates", summary="템플릿 파일 목록 조회")
+def list_template_documents(
+    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_READ)),
+):
+    """R2 template/ 경로의 템플릿 목록을 조회합니다."""
+    del current_emp
+    items = list_r2_objects(settings.R2_TEMPLATE_PREFIX)
+    return [
+        {
+            "key": item["key"],
+            "file_name": item["file_name"],
+            "size": item["size"],
+            "last_modified": (
+                item["last_modified"].isoformat() if item.get("last_modified") else None
+            ),
+        }
+        for item in sorted(items, key=lambda x: x.get("file_name", "").lower())
+    ]
+
+
+@router.get("/templates/download", summary="템플릿 파일 다운로드")
+def download_template_document(
+    key: str = Query(..., description="R2 템플릿 파일 key"),
+    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_READ)),
+):
+    """R2 template/ 경로의 파일을 다운로드합니다."""
+    del current_emp
+    normalized_prefix = settings.R2_TEMPLATE_PREFIX.rstrip("/") + "/"
+    if not key.startswith(normalized_prefix):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="유효하지 않은 템플릿 경로입니다.",
+        )
+
+    file_bytes = download_file_from_r2(key)
+    filename = key.split("/")[-1] or "template-file"
+    encoded_filename = quote(filename)
+    return Response(
+        content=file_bytes,
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+        },
+    )
+
+
 @router.get("/{file_id}", summary="문서 단건 조회")
 def get_document(
     file_id: str,
     db: Session = Depends(get_db),
-    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_READ))
+    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_READ)),
 ):
     """특정 파일ID의 문서 메타데이터 조회"""
     doc = db.query(Document).filter(Document.file_id == file_id).first()
@@ -80,11 +140,12 @@ def get_document(
         )
     return doc
 
+
 @router.get("/{file_id}/download", summary="문서 다운로드")
 def download_document(
     file_id: str,
     db: Session = Depends(get_db),
-    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_READ))
+    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_READ)),
 ):
     """R2에서 파일 다운로드 (바이너리 응답)"""
     doc, file_bytes = get_document_bytes(db=db, file_id=file_id)
@@ -92,26 +153,32 @@ def download_document(
     return Response(
         content=file_bytes,
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"},
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+        },
     )
 
-@router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT, summary="문서 삭제")
+
+@router.delete(
+    "/{file_id}", status_code=status.HTTP_204_NO_CONTENT, summary="문서 삭제"
+)
 def delete_document(
     file_id: str,
     db: Session = Depends(get_db),
-    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_WRITE))
+    current_emp: TokenData = Depends(PermissionChecker(Permission.DOCUMENT_WRITE)),
 ):
     """문서 메타데이터 DB 및 R2 저장소에서 삭제"""
-    doc = db.query(Document).filter(
-        Document.file_id == file_id,
-        Document.uploader == current_emp.emp_id
-    ).first()
+    doc = (
+        db.query(Document)
+        .filter(Document.file_id == file_id, Document.uploader == current_emp.emp_id)
+        .first()
+    )
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="문서를 찾을 수 없거나 삭제 권한이 없습니다."
+            detail="문서를 찾을 수 없거나 삭제 권한이 없습니다.",
         )
-    
+
     # R2 저장소에서 파일 삭제
     try:
         delete_file_from_r2(doc.file_path)
@@ -125,7 +192,7 @@ def delete_document(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"문서 데이터베이스 삭제 실패: {str(e)}"
+            detail=f"문서 데이터베이스 삭제 실패: {str(e)}",
         )
 
     # 파일 삭제 성공 후 R2 문서 리스트 자동 동기화

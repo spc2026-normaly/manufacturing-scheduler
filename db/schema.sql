@@ -143,6 +143,7 @@ CREATE TABLE documents (
     embedding_date TIMESTAMP NOT NULL,
     embedding_status VARCHAR(50) NOT NULL,
     CONSTRAINT PK_DOCUMENTS PRIMARY KEY (file_id, uploader),
+    CONSTRAINT UQ_DOCUMENTS_UPLOADER_FILE_PATH UNIQUE (uploader, file_path),
     CONSTRAINT FK_employees_TO_documents FOREIGN KEY (uploader) REFERENCES employees (emp_id) ON DELETE CASCADE
 );
 

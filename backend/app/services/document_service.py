@@ -6,6 +6,7 @@ from typing import Literal
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import and_, select, text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -132,32 +133,44 @@ def _upsert_document_metadata(
     existing = _find_document_by_path(db, file_path)
     now = _utc_now()
 
-    if existing is None:
-        doc = Document(
-            file_id=str(uuid.uuid4()),
-            uploader=uploader,
-            file_name=file_name,
-            file_size=file_size,
-            file_extension=file_extension,
-            file_path=file_path,
-            file_created_at=now,
-            file_updated_at=file_updated_at,
-            embedding_date=now,
-            embedding_status="pending",
-        )
-        db.add(doc)
-        return doc, True
+    changed = (
+        existing is None
+        or existing.file_size != file_size
+        or _normalize_datetime(existing.file_updated_at)
+        != _normalize_datetime(file_updated_at)
+    )
 
-    changed = existing.file_size != file_size or _normalize_datetime(
-        existing.file_updated_at
-    ) != _normalize_datetime(file_updated_at)
+    stmt = insert(Document).values(
+        file_id=str(uuid.uuid4()),
+        uploader=uploader,
+        file_name=file_name,
+        file_size=file_size,
+        file_extension=file_extension,
+        file_path=file_path,
+        file_created_at=now,
+        file_updated_at=file_updated_at,
+        embedding_date=now,
+        embedding_status="pending",
+    )
 
-    existing.file_name = file_name
-    existing.file_size = file_size
-    existing.file_extension = file_extension
-    existing.file_path = file_path
-    existing.file_updated_at = file_updated_at
-    return existing, changed
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[Document.uploader, Document.file_path],
+        set_={
+            "file_name": file_name,
+            "file_size": file_size,
+            "file_extension": file_extension,
+            "file_updated_at": file_updated_at,
+        },
+    )
+
+    db.execute(stmt)
+    db.flush()
+
+    doc = _find_document_by_path(db, file_path)
+    if doc is None:
+        raise RuntimeError("문서 메타데이터 업서트 후 조회에 실패했습니다.")
+
+    return doc, changed
 
 
 def _run_embedding_pipeline(db: Session, doc: Document, file_bytes: bytes) -> str:
@@ -389,6 +402,7 @@ def search_rag_chunks(db: Session, query: str, top_k: int | None = None) -> list
         }
         for row in rows
     ]
+
 
 # DB에서 파일 찾고 R2에서 파일 다운로드 후 반환
 def get_document_bytes(db: Session, file_id: str) -> tuple[Document, bytes]:

@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: manufacturing-app
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/part-of: manufacturing-scheduler
+spec:
+  #replicas: 1은 pod를 1개 띄워라 라는 뜻
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backend
+        app.kubernetes.io/part-of: manufacturing-scheduler
+    spec:
+      containers:
+        - name: backend
+          # latest 대신 불변 태그를 사용해 배포 이력을 추적한다.
+          image: docker.io/dong5053/manufacturing-scheduler-backend:3.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          command:
+            - uvicorn
+          args:
+            - app.main:app
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+          envFrom:
+            # DB 비밀값을 환경변수로 주입한다.
+            - secretRef:
+                name: postgres-secret
+            # OpenAI, R2, JWT 같은 앱 비밀값을 주입한다.
+            - secretRef:
+                name: app-secrets
+            # 모델명, prefix, 청킹 설정 같은 일반 설정값을 주입한다.
+            - configMapRef:
+                name: app-config
+          env:
+            # POSTGRES_* 값이 envFrom 으로 들어온 뒤 DATABASE_URL을 조합한다.
+            - name: DATABASE_URL
+              value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.manufacturing-app.svc.cluster.local:5432/$(POSTGRES_DB)
+            # 쿠버네티스에서는 Alembic 기반 마이그레이션을 기본으로 사용한다.
+            - name: DB_AUTO_CREATE_TABLES
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1
+              memory: 1Gi

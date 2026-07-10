@@ -1,0 +1,30 @@
+.dashboardContent {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.calendarDetailRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+@media (max-width: 1200px) {
+  .calendarDetailRow {
+    grid-template-columns: 1fr;
+  }
+}
+.pageToast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background-color: rgba(15, 23, 42, 0.9);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}

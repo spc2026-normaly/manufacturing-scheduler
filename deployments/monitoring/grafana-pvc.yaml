@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc
+  namespace: manufacturing-monitoring
+  labels:
+    app.kubernetes.io/name: grafana-pvc
+    app.kubernetes.io/part-of: manufacturing-scheduler
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

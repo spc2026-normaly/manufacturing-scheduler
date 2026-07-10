@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: manufacturing-monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-config
+    app.kubernetes.io/part-of: manufacturing-scheduler
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      # Prometheus 자기 자신을 확인한다.
+      - job_name: prometheus
+        metrics_path: /prometheus/metrics
+        static_configs:
+          - targets: ['localhost:9090']
+
+      # FastAPI backend 의 /metrics 를 수집한다.
+      - job_name: fastapi-backend
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['backend.manufacturing-app.svc.cluster.local:8000']
+
+      # PostgreSQL exporter 의 메트릭을 수집한다.
+      - job_name: postgres-exporter
+        static_configs:
+          - targets: ['postgres-exporter.manufacturing-monitoring.svc.cluster.local:9187']
+
+      # 쿠버네티스 오브젝트 상태(Deployment/Pod/Node 등)를 수집한다.
+      - job_name: kube-state-metrics
+        static_configs:
+          - targets: ['kube-state-metrics.manufacturing-monitoring.svc.cluster.local:8080']
+
+      # 노드 자원(CPU/메모리/디스크/네트워크)을 수집한다.
+      - job_name: node-exporter
+        dns_sd_configs:
+          - names:
+              - node-exporter.manufacturing-monitoring.svc.cluster.local
+            type: A
+            port: 9100
+
+      # ingress-nginx controller 메트릭을 수집한다.
+      - job_name: ingress-nginx-controller
+        static_configs:
+          - targets: ['ingress-nginx-controller-metrics.ingress-nginx.svc.cluster.local:10254']
+
+      # 나중에 필요하면 여기에 ingress-nginx, kube-state-metrics, node-exporter 를 추가할 수 있다.

@@ -1,0 +1,69 @@
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+@media (max-width: 1024px) {
+  .statsRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .statsRow {
+    grid-template-columns: 1fr;
+  }
+}
+.statCard {
+  background-color: var(--card-bg, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 120px;
+}
+.statCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.statCardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+}
+.statCardBody {
+  margin-top: 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+.statNumber {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-main, #0f172a);
+}
+.statUnit {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  margin-left: 2px;
+}
+.statCardFooter {
+  margin-top: 10px;
+  border-top: 1px solid var(--border, #f1f5f9);
+  padding-top: 8px;
+}
+.trendText {
+  font-size: 11px;
+  font-weight: 600;
+}
+.trendText.positive {
+  color: #10b981;
+}
+.trendText.negative {
+  color: #ef4444;
+}

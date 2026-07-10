@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-exporter
+  namespace: manufacturing-monitoring
+  labels:
+    app.kubernetes.io/name: postgres-exporter
+    app.kubernetes.io/part-of: manufacturing-scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres-exporter
+        app.kubernetes.io/part-of: manufacturing-scheduler
+    spec:
+      containers:
+        - name: postgres-exporter
+          image: prometheuscommunity/postgres-exporter:v0.15.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 9187
+          envFrom:
+            - secretRef:
+                name: postgres-exporter-secret
+          env:
+            - name: DATA_SOURCE_NAME
+              value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.manufacturing-app.svc.cluster.local:5432/$(POSTGRES_DB)?sslmode=disable
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi

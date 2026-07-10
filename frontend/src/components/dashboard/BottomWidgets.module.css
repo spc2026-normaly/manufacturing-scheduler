@@ -1,0 +1,117 @@
+.bottomWidgetsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+@media (max-width: 1024px) {
+  .bottomWidgetsRow {
+    grid-template-columns: 1fr;
+  }
+}
+.widgetCard {
+  background-color: var(--card-bg, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  padding: 24px;
+}
+.widgetHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.widgetHeader h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main, #0f172a);
+  margin: 0;
+}
+.widgetBadge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+.widgetBadge.purple {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+}
+.widgetBadge.orange {
+  background-color: #ffedd5;
+  color: #c2410c;
+}
+.widgetDivider {
+  height: 1px;
+  background-color: var(--border, #f1f5f9);
+  margin: 14px 0;
+}
+.documentsList, .equipmentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.docRowItem, .eqRowItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background-color: var(--bg-main, #f8fafc);
+  border: 1px solid var(--border, #f1f5f9);
+  border-radius: 8px;
+}
+.docIconTitle, .eqInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.docIcon, .eqIcon {
+  font-size: 20px;
+}
+.docInfoTexts, .eqInfoTexts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.docFileName, .eqNameText {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main, #334155);
+}
+.docMetaSub, .eqDateSub {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+}
+.docActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.docExtBadge {
+  background-color: #e2e8f0;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.docDownloadBtn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+}
+.eqStatusBadge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.eqStatusBadge.urgent {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+.eqStatusBadge.normal {
+  background-color: #fef7e0;
+  color: #b06000;
+}

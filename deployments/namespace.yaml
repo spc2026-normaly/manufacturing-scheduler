@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: manufacturing-app
+  labels:
+    app.kubernetes.io/name: manufacturing-app
+    app.kubernetes.io/part-of: manufacturing-scheduler
+    app.kubernetes.io/managed-by: hand-written-manifests
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: manufacturing-monitoring
+  labels:
+    app.kubernetes.io/name: manufacturing-monitoring
+    app.kubernetes.io/part-of: manufacturing-scheduler
+    app.kubernetes.io/managed-by: hand-written-manifests
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-nginx
+  labels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/part-of: manufacturing-scheduler
+    app.kubernetes.io/managed-by: hand-written-manifests

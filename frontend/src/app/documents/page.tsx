@@ -1,0 +1,70 @@
+"use client";
+
+import React from "react";
+import { useDocuments } from "../../hooks/useDocuments";
+import { StatusBanner } from "../../components/documents/StatusBanner";
+import { UploadSection } from "../../components/documents/UploadSection";
+import { Templates } from "../../components/documents/Templates";
+import { DocumentsTable } from "../../components/documents/DocumentsTable";
+import styles from "./page.module.css";
+
+export default function DocumentsPage() {
+  const {
+    documents,
+    dragActive,
+    scheduleStatus,
+    progress,
+    r2SyncMessage,
+    searchQuery,
+    setSearchQuery,
+    sortField,
+    sortOrder,
+    toggleSort,
+    handleDrag,
+    handleDrop,
+    handleFileChange,
+    handleDelete,
+    handleDownload,
+    uploadProgress,
+    uploadingFileName,
+  } = useDocuments();
+
+  return (
+    <div className={`${styles.docContainer} animate-in`}>
+      {/* ── Status Banner ── */}
+      <StatusBanner
+        scheduleStatus={scheduleStatus}
+        progress={progress}
+        r2SyncMessage={r2SyncMessage}
+      />
+
+      <div className={styles.docTopGrid}>
+        {/* ── Upload Section ── */}
+        <UploadSection
+          dragActive={dragActive}
+          scheduleStatus={scheduleStatus}
+          handleDrag={handleDrag}
+          handleDrop={handleDrop}
+          handleFileChange={handleFileChange}
+          uploadProgress={uploadProgress}
+          uploadingFileName={uploadingFileName}
+        />
+
+        {/* ── Templates Panel ── */}
+        <Templates />
+      </div>
+
+      {/* ── Documents List Table ── */}
+      <DocumentsTable
+        documents={documents}
+        handleDownload={handleDownload}
+        handleDelete={handleDelete}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        toggleSort={toggleSort}
+      />
+    </div>
+  );
+}

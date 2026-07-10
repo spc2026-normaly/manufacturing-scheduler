@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: manufacturing-app
+  labels:
+    app.kubernetes.io/name: postgres-pvc
+    app.kubernetes.io/part-of: manufacturing-scheduler
+spec:
+  accessModes:
+    # DB 데이터는 한 Pod 에서만 안정적으로 쓰는 것이 일반적이다.
+    - ReadWriteOnce
+  resources:
+    requests:
+      # 로컬 클러스터에서는 처음부터 너무 크게 잡지 않는다.
+      storage: 10Gi

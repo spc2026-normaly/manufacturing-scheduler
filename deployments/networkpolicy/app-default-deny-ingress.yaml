@@ -1,0 +1,10 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: app-default-deny-ingress
+  namespace: manufacturing-app
+spec:
+  # manufacturing-app 안의 모든 Pod 에 대해 ingress 를 기본 차단한다.
+  podSelector: {}
+  policyTypes:
+    - Ingress

@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-ingress
+  namespace: manufacturing-app
+  labels:
+    app.kubernetes.io/name: app-ingress
+    app.kubernetes.io/part-of: manufacturing-scheduler
+  annotations:
+    # 파일 업로드와 문서 처리 요청이 있으므로 body size 제한을 넉넉하게 둔다.
+    nginx.ingress.kubernetes.io/proxy-body-size: "200m"
+    # 챗봇/일정 생성처럼 시간이 걸릴 수 있는 요청을 고려해 타임아웃도 충분히 준다.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  ingressClassName: nginx
+  rules:
+    # 1차 구현에서는 host를 비워두어, 외부 IP로 바로 접속해도 동작하게 한다.
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000

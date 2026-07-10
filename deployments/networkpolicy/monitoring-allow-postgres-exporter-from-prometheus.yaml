@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-exporter-from-prometheus
+  namespace: manufacturing-monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-exporter
+  policyTypes:
+    - Ingress
+  ingress:
+    # Prometheus 가 PostgreSQL exporter 를 scrape 할 수 있게 허용한다.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/name: manufacturing-monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 9187

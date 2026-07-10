@@ -1,0 +1,23 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: Prometheus
+    type: prometheus
+    access: proxy
+    # Prometheus가 /prometheus route-prefix로 실행되므로 base path를 맞춘다.
+    url: http://prometheus:9090/prometheus
+    isDefault: true
+    editable: true
+  - name: PostgreSQL
+    uid: PostgreSQL
+    type: postgres
+    # Kubernetes 서비스 DNS를 사용한다.
+    url: postgres.manufacturing-app.svc.cluster.local:5432
+    user: ${POSTGRES_USER}
+    database: ${POSTGRES_DB}
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}
+    jsonData:
+      sslmode: 'disable'
+      encrypt: 'disable'

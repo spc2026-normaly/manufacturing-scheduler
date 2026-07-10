@@ -1,0 +1,59 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-from-backend-and-exporter
+  namespace: manufacturing-app
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    # backend 및 마이그레이션/시드 잡만 DB에 접속할 수 있게 허용한다.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/name: manufacturing-app
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: backend
+      ports:
+        - protocol: TCP
+          port: 5432
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/name: manufacturing-app
+          podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - backend-migrate
+                  - backend-seed
+      ports:
+        - protocol: TCP
+          port: 5432
+    # postgres-exporter 가 메트릭을 읽을 수 있게 허용한다.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/name: manufacturing-monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-exporter
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Grafana SQL datasource가 DB를 조회할 수 있게 허용한다.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/name: manufacturing-monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: grafana
+      ports:
+        - protocol: TCP
+          port: 5432

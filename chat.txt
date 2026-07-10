@@ -1,0 +1,678 @@
+붙여넣은 텍스트 (1)(7).txt
+문서
+
+원인 거의 확정됐어. db 서비스가 ./db를 /docker-entrypoint-initdb.d로 마운트하고 있어서, 새 DB를 띄울 때 schema.sql, seed.sql이 자동 실행되고 있어.
+
+21s 동안 생각함
+
+원인 확인됐어. ./db/schema.sql이 새 PostgreSQL 컨테이너 초기화 시 자동 실행되고 있어서 그래.
+
+네 docker compose config에 이 설정이 있어.
+
+volumes:
+  - type: bind
+    source: /home/vagrant/manufacturing-scheduler-sub/db
+    target: /docker-entrypoint-initdb.d
+    read_only: true
+
+그리고 실제로 파일도 있어.
+
+./manufacturing-scheduler-sub/db/schema.sql
+./manufacturing-scheduler-sub/db/seed.sql
+
+schema.sql 안에는 아래 테이블 생성 구문도 있고.
+
+CREATE TABLE orders
+CREATE TABLE task
+CREATE TABLE schedules
+
+즉 네가 이렇게 해도:
+
+docker compose down -v
+docker compose up -d db
+
+DB가 완전히 비어 있는 상태로 남는 게 아니라, PostgreSQL 이미지가 처음 뜰 때 /docker-entrypoint-initdb.d 안의 SQL을 자동 실행해서 orders, task, schedules 같은 테이블을 다시 만들어버리는 거야.
+
+그래서 Alembic 입장에서는 이렇게 보게 돼.
+
+DB에는 schema.sql로 만들어진 orders/task/schedules 테이블이 있음
+하지만 SQLAlchemy metadata에는 해당 테이블이 없음
+따라서 autogenerate 결과로 drop_table() 생성
+
+그래서 지금 생성된 baseline_init.py에 users는 create_table()로 나오고, orders, task, schedules는 drop_table()로 나온 거야. 이전 로그에서도 실제 생성된 migration에 op.drop_table('task'), op.drop_table('orders'), op.drop_table('schedules')가 들어가 있었어.
+
+지금 baseline_init.py는 삭제해야 함
+
+현재 생성된 migration은 최초 생성용 baseline이 아니야.
+
+rm -f backend/alembic/versions/*baseline_init.py
+선택지는 2개야
+1. Alembic을 진짜 DB 스키마 관리 기준으로 쓸 경우
+
+이게 가장 권장되는 방향이야.
+
+이 경우에는 schema.sql이 자동 실행되면 안 돼.
+즉 docker-compose.yml에서 아래 줄을 제거하거나 주석 처리해야 해.
+
+- ./db:/docker-entrypoint-initdb.d:ro
+
+그 다음 초기화:
+
+docker compose down -v
+docker compose up -d db
+
+DB가 비었는지 확인:
+
+docker compose exec db psql -U admin -d manufacturing_db -c "\dt"
+
+정상이면 이런 식으로 나와야 해.
+
+Did not find any relations.
+
+그 다음 Alembic baseline 생성:
+
+docker compose run --rm backend alembic revision --autogenerate -m baseline_init
+
+다만 여기서 중요한 점이 있어.
+orders, task, schedules, required_equipments, schedule_assignments 테이블이 계속 필요하다면, 이 테이블들이 SQLAlchemy 모델로 정의되어 있고 Alembic env.py에서 import되어 있어야 해.
+
+확인:
+
+grep -R "__tablename__ = ['\"]orders\|__tablename__ = ['\"]task\|__tablename__ = ['\"]schedules\|__tablename__ = ['\"]required_equipments\|__tablename__ = ['\"]schedule_assignments" -n backend
+
+모델이 없다면 Alembic autogenerate는 그 테이블들을 만들 수 없어.
+그 경우에는 schema.sql을 참고해서 SQLAlchemy 모델을 만들거나, baseline migration에 수동으로 op.create_table()을 작성해야 해.
+
+정상적인 baseline은 upgrade()에 이런 형태가 있어야 해.
+
+op.create_table("orders", ...)
+op.create_table("task", ...)
+op.create_table("schedules", ...)
+
+그리고 이런 게 있으면 안 돼.
+
+op.drop_table("orders")
+op.drop_table("task")
+op.drop_table("schedules")
+2. 기존 schema.sql을 계속 초기화 기준으로 쓸 경우
+
+이 경우에는 Alembic의 autogenerate baseline을 만들면 안 돼.
+이미 schema.sql이 테이블을 만들고 있으니까, Alembic에는 “현재 DB가 baseline 상태다”라고 표시만 해야 해.
+
+흐름은 이렇게 돼.
+
+rm -f backend/alembic/versions/*baseline_init.py
+docker compose up -d db backend
+docker compose exec backend alembic revision -m baseline_init
+
+생성된 파일을 열어서:
+
+vi backend/alembic/versions/*baseline_init.py
+
+upgrade()와 downgrade()를 비워.
+
+def upgrade() -> None:
+    pass
+
+
+def downgrade() -> None:
+    pass
+
+그리고 DB에 현재 revision만 기록:
+
+docker compose exec backend alembic stamp head
+
+이 방식은 기존 DB를 건드리지 않아.
+다만 단점은 명확해.
+
+빈 DB에 alembic upgrade head만 실행해서 전체 테이블을 만들 수는 없음
+초기 테이블 생성은 여전히 schema.sql이 담당함
+지금 상황에서 추천
+
+너는 “최초 실행 시 만들 baseline revision”을 원한다고 했으니까, 추천은 1번이야.
+
+즉:
+
+schema.sql 자동 실행 제거
+→ 빈 DB 확인
+→ SQLAlchemy 모델 import 확인
+→ alembic autogenerate
+→ create_table 중심 migration 생성
+→ alembic upgrade head
+
+명령어로 정리하면:
+
+# 1. 잘못 생성된 migration 삭제
+rm -f backend/alembic/versions/*baseline_init.py
+
+# 2. docker-compose.yml에서 ./db:/docker-entrypoint-initdb.d:ro 제거 또는 주석 처리
+
+# 3. DB 완전 초기화
+docker compose down -v
+docker compose up -d db
+
+# 4. 진짜 빈 DB인지 확인
+docker compose exec db psql -U admin -d manufacturing_db -c "\dt"
+
+# 5. baseline 생성
+docker compose run --rm backend alembic revision --autogenerate -m baseline_init
+
+# 6. 생성 파일 확인
+cat backend/alembic/versions/*baseline_init.py
+
+그리고 생성 파일에 drop_table()이 하나라도 있으면 아직 정상 baseline이 아니야.
+
+추가로 중요한 보안 이슈
+
+방금 로그에 OPENAI_API_KEY, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY가 그대로 노출됐어.
+이미 채팅창에 붙여넣은 값이라 안전하게 보려면 OpenAI 키와 Cloudflare R2 키는 폐기/재발급하는 게 좋아.
+
+앞으로는 공유할 때 이렇게 마스킹하는 게 안전해.
+
+OPENAI_API_KEY=sk-****
+R2_ACCESS_KEY_ID=****
+R2_SECRET_ACCESS_KEY=****
+음 docker compose로 baseline 리비전을 만드는 이유는 쿠버네티스에 postgresql 만들때 .sql 내용들이 실행시키게 만들기 어렵다고해서 최초 1회만 docker compose로 리비전을 만드는건데 이 경우 drop 명령어가 있어도 상관 없는거 아니야??
+
+의도는 이해했어. 다만 “리비전을 Docker Compose에서 한 번만 만든다”는 것과 “그 리비전을 Kubernetes 빈 DB에 적용해도 안전하다”는 건 별개야.
+
+23s 동안 생각함
+
+아니, 그 경우에도 drop_table()이 있으면 상관없는 게 아니라 위험해.
+이유는 네가 만든 baseline revision은 “Docker Compose에서 한 번 실행하기 위한 것”이 아니라, 나중에 Kubernetes PostgreSQL 빈 DB에 적용할 migration 파일이기 때문이야.
+
+현재 생성된 migration은 대략 이런 의미야.
+
+op.create_table("users", ...)
+op.drop_table("task")
+op.drop_table("required_equipments")
+op.drop_table("schedules")
+op.drop_table("schedule_assignments")
+op.drop_table("orders")
+
+즉 Alembic이 만든 이 파일은:
+
+빈 DB에 전체 테이블을 생성하는 baseline
+
+이 아니라,
+
+schema.sql로 이미 만들어진 DB를 현재 SQLAlchemy 모델 상태에 맞게 변경하는 diff migration
+
+에 가까워.
+
+네 로그에서도 schema.sql이 orders, task, schedules를 만들고 있고, 그 상태에서 Alembic이 removed table로 판단해서 drop_table()을 생성했어.
+
+왜 Kubernetes에서는 문제가 되냐면
+
+Kubernetes PostgreSQL에는 .sql을 실행시키기 어렵다고 했지.
+그러면 K8s DB는 빈 DB일 가능성이 높아.
+
+그 빈 DB에 이 migration을 적용하면:
+
+alembic upgrade head
+
+처음에 users 테이블은 만들 수 있어.
+
+op.create_table("users", ...)
+
+그런데 바로 다음에 이걸 실행하려고 해.
+
+op.drop_table("task")
+
+하지만 빈 DB에는 task 테이블이 없어.
+그래서 PostgreSQL에서 대략 이런 오류가 날 수 있어.
+
+table "task" does not exist
+
+즉 Kubernetes에서 .sql을 실행하지 않을 거라면 drop_table()은 더더욱 있으면 안 돼.
+
+반대로 K8s에서 어떻게든 schema.sql이 먼저 실행된 상태라면?
+그때는 drop_table()이 실제로 orders, task, schedules를 삭제해버려서 그것도 문제야.
+
+정리하면
+
+현재 migration은 이 목적에 맞지 않아.
+
+Kubernetes 빈 PostgreSQL에 최초 1회 적용해서 전체 스키마를 만드는 baseline
+
+이 목적이라면 upgrade()에는 기본적으로 이런 것들이 있어야 해.
+
+op.create_table("employees", ...)
+op.create_table("equipments", ...)
+op.create_table("orders", ...)
+op.create_table("task", ...)
+op.create_table("schedules", ...)
+op.create_table("required_equipments", ...)
+op.create_table("schedule_assignments", ...)
+
+그리고 이런 건 없어야 해.
+
+op.drop_table(...)
+op.drop_constraint(...)
+op.drop_index(...)
+지금 상황에서 맞는 방향
+
+네 의도는 이거야.
+
+K8s PostgreSQL에서 schema.sql을 직접 실행하기 어려우니,
+schema.sql 역할을 Alembic baseline migration으로 대체하고 싶다.
+
+그럼 방법은 둘 중 하나야.
+
+방법 1. SQLAlchemy 모델을 기준으로 baseline 생성
+
+이게 가장 정석이야.
+
+docker-compose.yml에서 이 줄을 임시로 제거 또는 주석 처리
+- ./db:/docker-entrypoint-initdb.d:ro
+DB 초기화
+docker compose down -v
+docker compose up -d db
+빈 DB 확인
+docker compose exec db psql -U admin -d manufacturing_db -c "\dt"
+
+정상이라면:
+
+Did not find any relations.
+Alembic baseline 생성
+rm -f backend/alembic/versions/*baseline_init.py
+docker compose run --rm backend alembic revision --autogenerate -m baseline_init
+
+단, 이 방법이 성공하려면 orders, task, schedules 같은 테이블이 SQLAlchemy 모델로 존재하고 Alembic이 import할 수 있어야 해.
+
+확인:
+
+grep -R "__tablename__ = ['\"]orders\|__tablename__ = ['\"]task\|__tablename__ = ['\"]schedules\|__tablename__ = ['\"]required_equipments\|__tablename__ = ['\"]schedule_assignments" -n backend
+
+모델이 없으면 Alembic autogenerate는 그 테이블들을 create_table()로 만들 수 없어.
+
+방법 2. schema.sql을 Alembic migration 안으로 옮기기
+
+지금 상황에서는 이게 더 현실적일 수도 있어.
+이미 db/schema.sql에 정답 스키마가 있다면, baseline revision을 수동으로 만들고 그 안에 SQL을 넣는 방식이야.
+
+먼저 잘못 생성된 파일 삭제:
+
+rm -f backend/alembic/versions/*baseline_init.py
+
+빈 revision 생성:
+
+docker compose run --rm backend alembic revision -m baseline_init
+
+그리고 생성된 파일의 upgrade()에 schema.sql 내용을 수동으로 옮겨.
+
+예시:
+
+def upgrade() -> None:
+    op.execute("""
+    CREATE EXTENSION IF NOT EXISTS vector;
+    """)
+
+    op.execute("""
+    CREATE TABLE employees (
+        ...
+    );
+    """)
+
+    op.execute("""
+    CREATE TABLE orders (
+        ...
+    );
+    """)
+
+    op.execute("""
+    CREATE TABLE task (
+        ...
+    );
+    """)
+
+    op.execute("""
+    CREATE TABLE schedules (
+        ...
+    );
+    """)
+
+이 방식이면 Kubernetes에서는 backend Job이나 init 작업으로 아래만 실행하면 돼.
+
+alembic upgrade head
+
+그러면 schema.sql을 PostgreSQL 컨테이너에 직접 넣지 않아도 Alembic이 테이블을 만들어줘.
+
+다만 seed.sql은 스키마와 분리하는 게 좋아.
+테이블 생성은 Alembic migration, 초기 샘플 데이터는 별도 seed script나 Job으로 나누는 게 안전해.
+
+내 추천
+
+지금 프로젝트 상태에서는 우선 이렇게 가는 게 좋아.
+
+1. schema.sql 자동 실행은 로컬 개발용으로만 유지
+2. Kubernetes 초기화는 Alembic upgrade head로 처리
+3. baseline_init.py는 autogenerate 결과를 그대로 쓰지 말고,
+   schema.sql 내용을 기준으로 수동 작성
+4. drop_table()은 baseline_init.py에서 전부 제거
+
+특히 지금처럼 SQLAlchemy 모델과 schema.sql의 테이블 목록이 안 맞는 상태에서는 autogenerate를 그대로 믿으면 안 돼.
+K8s 최초 배포용 baseline에는 drop_table()이 있으면 안 된다고 보면 돼.
+
+방법1로 해봤더니 아래와 같네.
+
+vagrant@h-flow-master:~/manufacturing-scheduler-sub$ cat backend/alembic/versions/20260630_1205_8df4d0461bc8_baseline_init.py
+"""baseline_init
+
+Revision ID: 8df4d0461bc8
+Revises:
+Create Date: 2026-06-30 12:05:46.915926+00:00
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+revision: str = '8df4d0461bc8'
+down_revision: Union[str, None] = None
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    # ### commands auto generated by Alembic - please adjust! ###
+    op.create_table('documents',
+    sa.Column('file_id', sa.String(length=255), nullable=False),
+    sa.Column('uploader', sa.String(length=255), nullable=False),
+    sa.Column('file_name', sa.String(length=255), nullable=False),
+    sa.Column('file_size', sa.BigInteger(), nullable=False),
+    sa.Column('file_extension', sa.String(length=50), nullable=False),
+    sa.Column('file_path', sa.Text(), nullable=False),
+    sa.Column('is_template', sa.Boolean(), nullable=False),
+    sa.Column('file_created_at', sa.DateTime(), nullable=False),
+    sa.Column('file_updated_at', sa.DateTime(), nullable=False),
+    sa.Column('embedding_date', sa.DateTime(), nullable=False),
+    sa.Column('embedding_status', sa.String(length=50), nullable=False),
+    sa.PrimaryKeyConstraint('file_id', 'uploader')
+    )
+    op.create_table('employees',
+    sa.Column('emp_id', sa.String(length=255), nullable=False),
+    sa.Column('login_id', sa.String(length=255), nullable=False),
+    sa.Column('login_pw', sa.String(length=255), nullable=False),
+    sa.Column('emp_name', sa.String(length=255), nullable=False),
+    sa.Column('emp_role', sa.String(length=50), nullable=False),
+    sa.Column('emp_date', sa.Date(), nullable=False),
+    sa.CheckConstraint("emp_role IN ('leader', 'member')", name='CK_EMPLOYEES_ROLE'),
+    sa.PrimaryKeyConstraint('emp_id')
+    )
+    op.create_index(op.f('ix_employees_login_id'), 'employees', ['login_id'], unique=True)
+    op.create_table('equipments',
+    sa.Column('eq_id', sa.String(length=255), nullable=False),
+    sa.Column('eq_name', sa.String(length=255), nullable=False),
+    sa.Column('eq_count', sa.Integer(), nullable=False),
+    sa.Column('available_eq_count', sa.Integer(), nullable=False),
+    sa.Column('check_cycle', sa.Integer(), nullable=False),
+    sa.Column('eq_status', sa.String(length=50), nullable=False),
+    sa.Column('check_date', sa.Date(), nullable=False),
+    sa.Column('recent_check_date', sa.Date(), nullable=False),
+    sa.Column('durability', sa.Integer(), nullable=False),
+    sa.Column('rest_duration', sa.Integer(), nullable=False),
+    sa.PrimaryKeyConstraint('eq_id')
+    )
+    op.create_table('safety_training',
+    sa.Column('training_id', sa.String(length=255), nullable=False),
+    sa.Column('emp_id', sa.String(length=255), nullable=False),
+    sa.Column('training_name', sa.String(length=255), nullable=False),
+    sa.Column('training_date', sa.Date(), nullable=False),
+    sa.Column('expired_date', sa.Date(), nullable=False),
+    sa.Column('training_status', sa.String(length=50), nullable=False),
+    sa.PrimaryKeyConstraint('training_id', 'emp_id')
+    )
+    op.create_table('safety_training_metadata',
+    sa.Column('metadata_id', sa.String(length=255), nullable=False),
+    sa.Column('training_names', sa.JSON(), nullable=False),
+    sa.Column('updated_at', sa.Date(), nullable=False),
+    sa.PrimaryKeyConstraint('metadata_id')
+    )
+    op.create_table('token_usage_logs',
+    sa.Column('id', sa.String(length=255), nullable=False),
+    sa.Column('feature', sa.String(length=100), nullable=False),
+    sa.Column('model_name', sa.String(length=100), nullable=False),
+    sa.Column('prompt_tokens', sa.Integer(), nullable=False),
+    sa.Column('completion_tokens', sa.Integer(), nullable=False),
+    sa.Column('total_tokens', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('users',
+    sa.Column('emp_id', sa.Integer(), nullable=False),
+    sa.Column('emp_name', sa.String(length=50), nullable=False),
+    sa.Column('login_id', sa.String(length=255), nullable=False),
+    sa.Column('login_pw', sa.String(length=255), nullable=False),
+    sa.Column('hashed_password', sa.String(length=255), nullable=False),
+    sa.Column('emp_role', sa.String(length=30), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.PrimaryKeyConstraint('emp_id')
+    )
+    op.create_index(op.f('ix_users_emp_id'), 'users', ['emp_id'], unique=False)
+    op.create_index(op.f('ix_users_emp_name'), 'users', ['emp_name'], unique=True)
+    op.create_table('chat_sessions',
+    sa.Column('session_id', sa.String(length=255), nullable=False),
+    sa.Column('employee_id', sa.String(length=255), nullable=True),
+    sa.Column('title', sa.String(length=255), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('last_activity', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['employee_id'], ['employees.emp_id'], ondelete='SET NULL'),
+    sa.PrimaryKeyConstraint('session_id')
+    )
+    op.create_table('document_chunks',
+    sa.Column('chunk_id', sa.String(length=255), nullable=False),
+    sa.Column('file_id', sa.String(length=255), nullable=False),
+    sa.Column('uploader', sa.String(length=255), nullable=False),
+    sa.Column('chunk_index', sa.Integer(), nullable=False),
+    sa.Column('content', sa.Text(), nullable=False),
+    sa.Column('embedding', pgvector.sqlalchemy.Vector(dim=1536), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['file_id', 'uploader'], ['documents.file_id', 'documents.uploader'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('chunk_id')
+    )
+    op.create_table('chatbot_logs',
+    sa.Column('log_id', sa.String(length=255), nullable=False),
+    sa.Column('session_id', sa.String(length=255), nullable=False),
+    sa.Column('question', sa.Text(), nullable=False),
+    sa.Column('answer', sa.Text(), nullable=False),
+    sa.Column('source', sa.String(length=50), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['session_id'], ['chat_sessions.session_id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('log_id')
+    )
+    # ### end Alembic commands ###
+
+
+def downgrade() -> None:
+    # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_table('chatbot_logs')
+    op.drop_table('document_chunks')
+    op.drop_table('chat_sessions')
+    op.drop_index(op.f('ix_users_emp_name'), table_name='users')
+    op.drop_index(op.f('ix_users_emp_id'), table_name='users')
+    op.drop_table('users')
+    op.drop_table('token_usage_logs')
+    op.drop_table('safety_training_metadata')
+    op.drop_table('safety_training')
+    op.drop_table('equipments')
+    op.drop_index(op.f('ix_employees_login_id'), table_name='employees')
+    op.drop_table('employees')
+    op.drop_table('documents')
+    # ### end Alembic commands ###
+
+이번 결과는 이전보다 훨씬 좋아졌어. upgrade()에서 drop_table()이 사라졌기 때문에 “빈 DB에 테이블을 생성하는 baseline” 형태로는 바뀌었어. 다만 아직 그대로 적용하면 몇 가지 문제가 날 가능성이 있어.
+
+21s 동안 생각함
+
+이번 결과는 방향은 맞게 바뀌었어.
+이전처럼 upgrade()에 drop_table()이 들어가 있던 상태는 아니고, 이제는 빈 DB 기준으로 create_table()들이 생성됐어.
+
+즉, 이 부분은 정상에 가까워졌어.
+
+def upgrade() -> None:
+    op.create_table('documents', ...)
+    op.create_table('employees', ...)
+    op.create_table('equipments', ...)
+    ...
+
+그리고 downgrade()에 drop_table()이 있는 건 정상야.
+downgrade()는 migration을 되돌릴 때 쓰는 함수라서, 생성했던 테이블을 삭제하는 코드가 들어가는 게 맞아.
+
+다만 아직 그대로 Kubernetes에서 alembic upgrade head 하면 문제가 날 가능성이 높아.
+
+1. orders, task, schedules 계열 테이블이 빠져 있음
+
+현재 baseline에는 아래 테이블이 없어.
+
+orders
+task
+schedules
+required_equipments
+schedule_assignments
+
+이전 schema.sql에는 이 테이블들이 있었고, 실제로 CREATE TABLE orders, CREATE TABLE task, CREATE TABLE schedules가 존재했어. 이전 로그에서도 이 테이블들이 DB에는 있는데 SQLAlchemy metadata에는 없어서 Alembic이 삭제 대상으로 봤던 상태였어.
+
+즉 지금 상태는:
+
+SQLAlchemy 모델에 등록된 테이블만 baseline으로 생성됨
+schema.sql에만 있고 모델에 없는 테이블은 빠짐
+
+그래서 이 테이블들이 서비스에서 필요하다면, 현재 baseline은 불완전한 초기 migration이야.
+
+확인 명령어:
+
+grep -R "__tablename__ = ['\"]orders\|__tablename__ = ['\"]task\|__tablename__ = ['\"]schedules\|__tablename__ = ['\"]required_equipments\|__tablename__ = ['\"]schedule_assignments" -n backend
+
+결과가 없으면 해당 SQLAlchemy 모델이 없는 거고, 결과가 있는데도 baseline에 안 나오면 alembic/env.py에서 모델 import가 안 된 거야.
+
+2. pgvector import가 빠져 있어서 실행 시 오류 날 수 있음
+
+현재 migration에는 이 코드가 있어.
+
+sa.Column('embedding', pgvector.sqlalchemy.Vector(dim=1536), nullable=False),
+
+그런데 상단 import에는 이것만 있어.
+
+from alembic import op
+import sqlalchemy as sa
+
+즉 pgvector를 import하지 않았어.
+이 상태로 alembic upgrade head 하면 대략 이런 오류가 날 수 있어.
+
+NameError: name 'pgvector' is not defined
+
+수정 방법은 둘 중 하나야.
+
+방법 A
+
+상단에 import 추가:
+
+import pgvector.sqlalchemy
+
+현재 코드 그대로 유지.
+
+sa.Column('embedding', pgvector.sqlalchemy.Vector(dim=1536), nullable=False),
+방법 B
+
+이렇게 바꾸는 게 더 깔끔해.
+
+from pgvector.sqlalchemy import Vector
+
+그리고 컬럼은 이렇게 수정:
+
+sa.Column('embedding', Vector(dim=1536), nullable=False),
+3. CREATE EXTENSION vector도 필요할 수 있음
+
+document_chunks.embedding이 Vector(dim=1536) 타입이기 때문에 PostgreSQL에 vector extension이 있어야 해.
+
+baseline migration의 upgrade() 맨 위에 이걸 추가하는 게 좋아.
+
+def upgrade() -> None:
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+
+    op.create_table('documents',
+    ...
+
+단, Kubernetes PostgreSQL 이미지도 pgvector/pgvector:pg16처럼 pgvector extension이 설치된 이미지를 써야 해. 일반 postgres:16 이미지면 CREATE EXTENSION vector에서 실패할 수 있어.
+
+4. 일부 Foreign Key가 빠진 것 같음
+
+현재 생성된 documents 테이블에는 uploader 컬럼이 있지만 employees.emp_id로 가는 FK가 없어.
+
+op.create_table('documents',
+    sa.Column('file_id', sa.String(length=255), nullable=False),
+    sa.Column('uploader', sa.String(length=255), nullable=False),
+    ...
+    sa.PrimaryKeyConstraint('file_id', 'uploader')
+)
+
+이전 로그에서는 이런 FK가 있었던 흔적이 있었어.
+
+Detected removed foreign key (uploader)(emp_id) on table documents
+
+safety_training.emp_id도 현재 FK 없이 생성되고 있어.
+
+op.create_table('safety_training',
+    sa.Column('training_id', sa.String(length=255), nullable=False),
+    sa.Column('emp_id', sa.String(length=255), nullable=False),
+    ...
+)
+
+이 FK들이 실제로 필요한 설계라면 SQLAlchemy 모델에 ForeignKey 또는 ForeignKeyConstraint가 빠져 있는 거야.
+
+예를 들면 이런 식으로 모델에 반영되어야 해.
+
+emp_id = Column(String(255), ForeignKey("employees.emp_id", ondelete="CASCADE"), nullable=False)
+
+복합키 FK라면 ForeignKeyConstraint가 필요하고.
+
+지금 상태에 대한 판단
+
+현재 baseline은 이렇게 볼 수 있어.
+
+drop_table 문제는 해결됨
+빈 DB에 일부 테이블을 생성하는 형태는 됨
+하지만 schema.sql 전체를 대체하기에는 아직 불완전함
+
+특히 아래 테이블들이 필요하면 아직 완료가 아니야.
+
+orders
+task
+schedules
+required_equipments
+schedule_assignments
+다음 추천 순서
+
+먼저 현재 migration 삭제는 하지 말고, 모델 목록부터 확인해봐.
+
+docker compose run --rm backend python - <<'PY'
+from app.db.base import Base
+
+print("Tables in SQLAlchemy metadata:")
+for name in sorted(Base.metadata.tables.keys()):
+    print("-", name)
+PY
+
+여기 출력에 orders, task, schedules가 없으면 Alembic은 절대 그 테이블들을 생성하지 못해.
+
+그 경우 선택지는 둘 중 하나야.
+
+1. orders/task/schedules 계열 SQLAlchemy 모델을 추가하고 다시 autogenerate
+2. baseline_init.py에 schema.sql 내용을 참고해서 op.create_table()을 수동 추가
+
+개인적으로는 지금 목적이 “Kubernetes에서 schema.sql 없이 최초 스키마를 만들기”라면, schema.sql에 있던 모든 테이블이 baseline migration에 들어가야 한다고 보는 게 맞아.
+
+최소 수정해야 할 건 이거야.
+
+from pgvector.sqlalchemy import Vector
+def upgrade() -> None:
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+
+그리고 document_chunks 컬럼 수정:
+
+sa.Column('embedding', Vector(dim=1536), nullable=False),
+
+그 다음 정말 필요한 테이블 목록과 FK까지 포함됐는지 확인하고 alembic upgrade head를 테스트하는 게 좋아.

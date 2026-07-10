@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backend-seed
+  namespace: manufacturing-app
+  labels:
+    app.kubernetes.io/name: backend-seed
+    app.kubernetes.io/part-of: manufacturing-scheduler
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backend-seed
+        app.kubernetes.io/part-of: manufacturing-scheduler
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: seed
+          image: pgvector/pgvector:pg16
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+          args:
+            - psql -h postgres.manufacturing-app.svc.cluster.local -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /seed/seed.sql
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+          volumeMounts:
+            - name: seed-sql
+              mountPath: /seed
+              readOnly: true
+      volumes:
+        - name: seed-sql
+          configMap:
+            # 다음 명령으로 생성: kubectl -n manufacturing-app create configmap db-seed-sql --from-file=seed.sql=db/seed.sql
+            name: db-seed-sql

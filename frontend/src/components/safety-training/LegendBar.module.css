@@ -1,0 +1,24 @@
+.stLegend {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-muted, #64748b);
+  padding-right: 8px;
+}
+.stLegendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.green { background-color: #22c55e; }
+.yellow { background-color: #eab308; }
+.red { background-color: #ef4444; }
+.gray { background-color: #94a3b8; }
+.none { background-color: #cbd5e1; }

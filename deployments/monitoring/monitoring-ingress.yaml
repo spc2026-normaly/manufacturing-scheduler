@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: monitoring-ingress
+  namespace: manufacturing-monitoring
+  labels:
+    app.kubernetes.io/name: monitoring-ingress
+    app.kubernetes.io/part-of: manufacturing-scheduler
+  annotations:
+    # Grafana/Prometheus UI 요청이 길어질 수 있으므로 여유를 준다.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  ingressClassName: nginx
+  rules:
+    # 1차 구현에서는 host를 비워두어 외부 IP로 바로 접근 가능하게 한다.
+    - http:
+        paths:
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+          - path: /prometheus
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus
+                port:
+                  number: 9090

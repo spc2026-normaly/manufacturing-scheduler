@@ -1,0 +1,75 @@
+import React, { useRef } from "react";
+import styles from "./UploadSection.module.css";
+
+interface UploadSectionProps {
+  dragActive: boolean;
+  scheduleStatus: "idle" | "running" | "completed" | "failed";
+  handleDrag: (e: React.DragEvent) => void;
+  handleDrop: (e: React.DragEvent) => void;
+  handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  uploadProgress: number | null;
+  uploadingFileName: string | null;
+}
+
+export function UploadSection({
+  dragActive,
+  scheduleStatus,
+  handleDrag,
+  handleDrop,
+  handleFileChange,
+  uploadProgress,
+  uploadingFileName,
+}: UploadSectionProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className={styles.docUploadCard}>
+      <div className={styles.docCardHeader}>
+        <span className={styles.docCardTitle}>파일 업로드</span>
+      </div>
+      <div
+        className={`${styles.docDropzone} ${dragActive ? styles.active : ""}`}
+        onDragEnter={handleDrag}
+        onDragOver={handleDrag}
+        onDragLeave={handleDrag}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          style={{ display: "none" }}
+          accept=".csv,.xlsx,.pdf,.txt,.docx"
+          multiple
+        />
+        <span className={styles.docUploadIcon}>📂</span>
+        <span className={styles.docUploadText}>파일을 드래그하여 놓거나 클릭하여 선택 (여러 파일 가능)</span>
+        <button
+          type="button"
+          className={styles.docUploadBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            fileInputRef.current?.click();
+          }}
+        >
+          업로드
+        </button>
+        <span className={styles.docUploadHint}>지원 파일 형식 (csv, xlsx, pdf, txt)</span>
+      </div>
+      {/* ── Upload Progress Bar ── */}
+      {uploadProgress !== null && (
+        <div className={styles.uploadingInfo}>
+          <span style={{ fontSize: 13 }}>업로드 중: <strong style={{ color: "#3b82f6" }}>{uploadingFileName}</strong></span>
+          <div className={styles.progressContainer}>
+            <div
+              className={styles.progressBar}
+              style={{ width: `${uploadProgress}%` }}
+            />
+            <span className={styles.progressText}>{uploadProgress}%</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,85 @@
+.docStatusBanner {
+  background-color: var(--card-bg, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-left: 4px solid #3b82f6;
+  border-radius: 8px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  position: relative;
+}
+.docStatusText {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main, #1e293b);
+}
+.docStatusProgressContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.docStatusProgressBar {
+  width: 150px;
+  height: 8px;
+  background-color: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.docStatusProgressFill {
+  height: 100%;
+  background-color: #3b82f6;
+  transition: width 0.2s linear;
+}
+.docStatusBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+.badgeInfo { background-color: #dbeafe; color: #1e40af; }
+.badgeSuccess { background-color: #dcfce7; color: #15803d; }
+.badgeError { background-color: #fee2e2; color: #b91c1c; }
+
+/* R2 Sync Message */
+.docR2SyncMessage {
+  position: absolute;
+  right: 0;
+  top: 0;
+  font-weight: 600;
+  font-size: 14px;
+  animation: slideIn 0.3s ease-out, slideOut 0.3s ease-out 6.7s forwards;
+  white-space: nowrap;
+}
+.docR2SyncMessage.success {
+  color: #10b981;
+}
+.docR2SyncMessage.error {
+  color: #ef4444;
+}
+.docR2SyncMessage.warning {
+  color: #3b82f6;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+}
